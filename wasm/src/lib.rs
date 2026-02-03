@@ -2,12 +2,10 @@
 mod utils;
 mod zip;
 
-use js_sys::{Array, Error, eval};
+use js_sys::{Array, Error};
 use wasm_bindgen::prelude::*;
-use wasm_bindgen::{Clamped, JsCast};
 use std::io::Cursor;
 use std::cmp;
-use hex;
 
 #[wasm_bindgen]
 pub struct LSZR {

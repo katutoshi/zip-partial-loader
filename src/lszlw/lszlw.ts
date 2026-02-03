@@ -1,5 +1,3 @@
-import 'core-js/features/promise';
-import 'regenerator-runtime/runtime';
 import { MessageType, RequestMessage, InitRequestMessage, GetDataRequestMessage, AbortDataRequestMessage } from '../types';
 import LSZRWrapper from "./lszr-wrapper";
 import { Resolver, createResolver } from '../resolver';

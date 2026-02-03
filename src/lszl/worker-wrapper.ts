@@ -7,7 +7,7 @@ export default class WorkerWrapper {
     getData: { [entryName: string]: Resolver<ArrayBuffer> }
   };
   private worker: Worker;
-  public onFallback: () => void;
+  public onFallback?: () => void;
   constructor(
     private params: {
       url: string,
@@ -66,8 +66,7 @@ export default class WorkerWrapper {
   }
 
   public abort(entryName: string) {
-    const exists = this.resolvers.getData[entryName];
-    if (exists) {
+    if (entryName in this.resolvers.getData) {
       this.worker.postMessage({
         type: MessageType.ABORT_DATA,
         payload: entryName

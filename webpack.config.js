@@ -1,6 +1,5 @@
 const path = require('path');
 const CopyWebpackPlugin = require("copy-webpack-plugin");
-const webpack = require('webpack');
 
 module.exports = (env, args) => {
   const lszlConfigs = require('./webpack.config.lszl')(env, args);
@@ -14,7 +13,16 @@ module.exports = (env, args) => {
         filename: "index.js"
       },
       plugins: [
-        new CopyWebpackPlugin([{ from: './static', ignore: ['.*', '*.ts', '.js'] }])
+        new CopyWebpackPlugin({
+          patterns: [
+            {
+              from: './static',
+              globOptions: {
+                ignore: ['**/*.ts', '**/*.js', '**/.*']
+              }
+            }
+          ]
+        })
       ],
       module: {
         rules: [
@@ -22,15 +30,10 @@ module.exports = (env, args) => {
             test: /\.[tj]s$/,
             exclude: /(node_modules|bower_components)/,
             use: {
-              loader: 'babel-loader',
+              loader: 'esbuild-loader',
               options: {
-                presets: [
-                  ['@babel/preset-env', { targets: { ie: 11 }, useBuiltIns: 'usage', corejs: 3 }],
-                  '@babel/preset-typescript',
-                ],
-                plugins: [
-                  ["@babel/plugin-proposal-class-properties", { "proposal": "minimal" }]
-                ]
+                loader: 'ts',
+                target: 'es2020'
               }
             }
           }
@@ -40,7 +43,7 @@ module.exports = (env, args) => {
         extensions: [".ts", ".js"]
       },
       devServer: {
-        disableHostCheck: true
+        allowedHosts: 'all'
       },
       externals: [
         {

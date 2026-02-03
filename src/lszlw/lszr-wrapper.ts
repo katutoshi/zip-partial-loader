@@ -1,13 +1,10 @@
-// polyfill manually for IE11
-import 'core-js/modules/es.math.clz32';
-import 'core-js/modules/es.math.fround';
-import 'core-js/modules/es.math.imul';
-import 'core-js/features/array/fill';
-import 'core-js/features/typed-array/slice';
-import 'fast-text-encoding';
-
-import { LSZR } from '../../wasm/pkg/lszr';
+import init, { LSZR } from '../../wasm/pkg/lszr';
+// @ts-ignore - webpack asset/resource returns URL string
+import wasmUrl from '../../wasm/pkg/lszr_bg.wasm';
 import { downloadRange, DataChunk, downloadAll } from './downloader';
+
+// WASM初期化（一度だけ実行）
+const wasmReady = init(wasmUrl);
 import FragmentStorage from './fragment-storage';
 import { throwIfAbort } from '../util/abort';
 import { RangeNotSupportedError } from '../error';
@@ -48,6 +45,8 @@ export default class LSZRWrapper {
       return this.init;
     }
     const promise = (async () => {
+      // WASM初期化を待つ
+      await wasmReady;
       const eocdCacheData = this.storage && await this.storage.getFragment(EOCD_ENTRY_NAME);
       const cdCacheData = this.storage && await this.storage.getFragment(CD_ENTRY_NAME);
       let eocdData = eocdCacheData;

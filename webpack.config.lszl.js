@@ -12,29 +12,32 @@ module.exports = (env, argv) => {
       output: {
         path: path.resolve(__dirname, "./dist"),
         filename: "lszl.js",
-        library: 'LSZL',
-        libraryTarget: 'umd',
-        libraryExport: 'default',
+        library: {
+          name: 'LSZL',
+          type: 'umd',
+          export: 'default',
+        },
       },
       plugins: [
-        new CopyWebpackPlugin([
-          './static/lszl.d.ts'
-        ]),
+        new CopyWebpackPlugin({
+          patterns: ['./static/lszl.d.ts']
+        }),
       ],
       module: {
         rules: [
           {
             test: /\.[jt]s$/,
             exclude: /(node_modules|bower_components)/,
-            loader: 'babel-loader'
+            loader: 'esbuild-loader',
+            options: {
+              loader: 'ts',
+              target: 'es2020'
+            }
           }
         ]
       },
       resolve: {
         extensions: [".ts", ".js"]
-      },
-      devServer: {
-        disableHostCheck: true
       }
     }
   ];

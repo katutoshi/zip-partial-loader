@@ -1,4 +1,4 @@
-import * as mime from 'mime';
+import mime from 'mime';
 
 const url = 'lenna.epub';
 

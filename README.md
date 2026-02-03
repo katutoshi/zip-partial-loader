@@ -1,15 +1,21 @@
-Bibi Zip Loader
-===============
+Zip Partial Loader
+==================
 
-Zip Loader for Bibi
+A library for partial ZIP file loading using Range Requests. Reads the ZIP central directory and fetches only the required files.
 
-Requiements
------------
+Requirements
+------------
 
-- Rust 1.34
-- Binaryen `brew install binaryen --HEAD`
+### 開発環境
+- Rust (latest stable)
 - wasm-pack `cargo install wasm-pack`
-- Node 8
+- wasm-opt (Binaryen) `brew install binaryen` または `cargo install wasm-opt`
+- Node.js 18+
+
+### ブラウザ対応
+- WebAssembly対応ブラウザが必要
+- IE11非対応
+- Chrome, Firefox, Safari, Edge (モダンブラウザ) 対応
 
 Usage
 -----
@@ -32,8 +38,13 @@ Development
 -----------
 
 ``` sh
-npm bootstrap # prepare submodules
-npm install   # install dependencies
-npm start     # start webpack-dev-server
-npm pack      # build package
+npm install     # install dependencies
+npm start       # start webpack-dev-server
+npm run build   # build package
 ```
+
+Acknowledgements
+----------------
+
+This project is forked from [lunascape/bibi-zip-loader](https://github.com/lunascape/bibi-zip-loader).
+Thanks to the original authors for their excellent work.

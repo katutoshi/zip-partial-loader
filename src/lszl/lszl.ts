@@ -1,14 +1,11 @@
-import 'regenerator-runtime/runtime';
 import WorkerWrapper from './worker-wrapper';
-import { isIE } from '../util/browser'
 
 const LANE_MULTIPLY = 4;
 
 export default class LSZL {
   public readonly url: string;
-  private readonly debug: boolean;
   private setupWorkers: Promise<WorkerWrapper[]>;
-  private prefetching: Promise<void>;
+  private prefetching?: Promise<void>;
   constructor(private params: {
     url: string,
     worker?: string,
@@ -23,9 +20,9 @@ export default class LSZL {
 
     this.setupWorkers = (async () => {
       const firstWorker = new WorkerWrapper({
-        url: this.url,
+        url,
         worker: this.params.worker,
-        noUseCache: isIE(),
+        noUseCache: false,
         forceInMemoryCache: this.params.forceInMemoryCache,
         forceKeepCache: this.params.forceKeepCache,
       });
@@ -38,9 +35,9 @@ export default class LSZL {
       const multiply = params.multiply && Math.max(params.multiply, 1) || LANE_MULTIPLY;
       for (let index = 1; index < multiply; index++) {
         const coworker = new WorkerWrapper({
-          url: this.url,
+          url,
           worker: this.params.worker,
-          noUseCache: isIE(),
+          noUseCache: false,
           forceKeepCache: true,
         });
         coworker.onFallback = () => this.fallback(coworker);
@@ -60,8 +57,9 @@ export default class LSZL {
         await this.getBuffer(name);
       }
     })();
-    promise.catch(() => this.prefetching = undefined);
-    return this.prefetching = promise;
+    promise.catch(() => { this.prefetching = undefined; });
+    this.prefetching = promise;
+    return this.prefetching;
   }
 
   private async getMostFreeWorker(): Promise<WorkerWrapper> {

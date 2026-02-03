@@ -1,6 +1,17 @@
 const path = require('path');
-const WebpackSynchronizableShellPlugin = require('webpack-synchronizable-shell-plugin');
-const webpack = require('webpack');
+const { execSync } = require('child_process');
+
+// WASMビルドをWebpack起動前に実行
+const buildWasm = () => {
+  try {
+    execSync(path.resolve(__dirname, './wasm/build.sh'), { stdio: 'inherit' });
+  } catch (error) {
+    console.warn('WASM build failed or skipped:', error.message);
+  }
+};
+
+// ビルド実行
+buildWasm();
 
 module.exports = {
   mode: 'development',
@@ -8,29 +19,27 @@ module.exports = {
   target: 'webworker',
   output: {
     path: path.resolve(__dirname, "./dist"),
-    filename: "lszlw.js"
+    filename: "lszlw.js",
+    publicPath: "./"
   },
-  plugins: [
-    new WebpackSynchronizableShellPlugin({
-      onBuildStart: {
-        scripts: [path.resolve(__dirname, './wasm/build.sh')],
-        blocking: true
-      }
-    }),
-  ],
   module: {
     rules: [
       {
         test: /\.[tj]s$/,
         exclude: /(node_modules|bower_components)/,
-        loader: 'babel-loader'
+        loader: 'esbuild-loader',
+        options: {
+          loader: 'ts',
+          target: 'es2020'
+        }
+      },
+      {
+        test: /\.wasm$/,
+        type: 'asset/resource'
       }
     ]
   },
   resolve: {
     extensions: [".ts", ".js"]
-  },
-  devServer: {
-    disableHostCheck: true
   }
 };

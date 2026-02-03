@@ -1,11 +1,7 @@
-import 'abortcontroller-polyfill/dist/abortcontroller-polyfill-only';
-import { fetch } from 'whatwg-fetch'
 import { throwIfAbort } from '../util/abort';
 import { RangeNotSupportedError } from '../error';
 
 export type DataChunk = [ArrayBuffer, number];
-
-const abortableFetch = ('signal' in new Request(self.location.href)) ? self.fetch : fetch
 
 export async function downloadRange(url: string, range: string, signal?: AbortSignal): Promise<DataChunk> {
   throwIfAbort(signal);
@@ -16,7 +12,7 @@ export async function downloadRange(url: string, range: string, signal?: AbortSi
     });
   }
 
-  const res = await abortableFetch(url, {
+  const res = await fetch(url, {
     headers: { 'Range': range },
     mode: 'cors',
     credentials: 'omit',
@@ -43,7 +39,7 @@ export async function downloadRange(url: string, range: string, signal?: AbortSi
 
 export async function downloadAll(url: string, signal?: AbortSignal): Promise<ArrayBuffer> {
   throwIfAbort(signal);
-  const res = await abortableFetch(url, {
+  const res = await fetch(url, {
     mode: 'cors',
     credentials: 'omit',
     signal,

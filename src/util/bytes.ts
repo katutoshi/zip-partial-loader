@@ -5,7 +5,7 @@ export function bufferToString(buff: ArrayBuffer): string {
 export function stringToBuffer(str: string): ArrayBuffer {
   const len = str.length;
   const bytes = new Uint8Array(len);
-  for (var i = 0; i < len; i++) {
+  for (let i = 0; i < len; i++) {
     bytes[i] = str.charCodeAt(i);
   }
   return bytes.buffer;

@@ -6,6 +6,7 @@ use std::io::prelude::*;
 use std::string::FromUtf8Error;
 
 #[derive(Debug)]
+#[allow(dead_code)]
 pub struct EOCD {
     pub signature: u32,
     pub number_of_this_disk: u16,
@@ -21,6 +22,7 @@ pub struct EOCD {
 }
 
 #[derive(Debug)]
+#[allow(dead_code)]
 pub struct CDHeader {
     pub signature: u32,
     pub version_made_by: u16,
