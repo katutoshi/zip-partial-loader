@@ -315,3 +315,514 @@ impl From<FileNameError> for LoadFileError {
         LoadFileError::FileNameConversionError
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // Helper: 最小構成のEOCD（22バイト）を生成
+    fn create_minimal_eocd(entry_count: u16, cd_size: u32, cd_offset: u32) -> Vec<u8> {
+        let mut data = Vec::new();
+        // Signature
+        data.extend_from_slice(&EOCD_SIGNATURE.to_le_bytes());
+        // Number of this disk
+        data.extend_from_slice(&0u16.to_le_bytes());
+        // Number of disk with CD
+        data.extend_from_slice(&0u16.to_le_bytes());
+        // Number of entries on this disk
+        data.extend_from_slice(&entry_count.to_le_bytes());
+        // Total number of entries
+        data.extend_from_slice(&entry_count.to_le_bytes());
+        // CD size
+        data.extend_from_slice(&cd_size.to_le_bytes());
+        // CD offset
+        data.extend_from_slice(&cd_offset.to_le_bytes());
+        // Comment length
+        data.extend_from_slice(&0u16.to_le_bytes());
+        data
+    }
+
+    // Helper: Central Directoryヘッダーを生成
+    fn create_cd_header(
+        file_name: &str,
+        local_header_offset: u32,
+        compressed_size: u32,
+        uncompressed_size: u32,
+        crc32: u32,
+        compression_method: u16,
+        is_utf8: bool,
+    ) -> Vec<u8> {
+        let mut data = Vec::new();
+        let file_name_bytes = file_name.as_bytes();
+        let flag: u16 = if is_utf8 { 1 << 11 } else { 0 };
+
+        // Signature
+        data.extend_from_slice(&CD_SIGNATURE.to_le_bytes());
+        // Version made by
+        data.extend_from_slice(&20u16.to_le_bytes());
+        // Version needed
+        data.extend_from_slice(&20u16.to_le_bytes());
+        // General purpose bit flag
+        data.extend_from_slice(&flag.to_le_bytes());
+        // Compression method
+        data.extend_from_slice(&compression_method.to_le_bytes());
+        // Last mod time
+        data.extend_from_slice(&0u16.to_le_bytes());
+        // Last mod date
+        data.extend_from_slice(&0u16.to_le_bytes());
+        // CRC32
+        data.extend_from_slice(&crc32.to_le_bytes());
+        // Compressed size
+        data.extend_from_slice(&compressed_size.to_le_bytes());
+        // Uncompressed size
+        data.extend_from_slice(&uncompressed_size.to_le_bytes());
+        // File name length
+        data.extend_from_slice(&(file_name_bytes.len() as u16).to_le_bytes());
+        // Extra field length
+        data.extend_from_slice(&0u16.to_le_bytes());
+        // File comment length
+        data.extend_from_slice(&0u16.to_le_bytes());
+        // Disk number start
+        data.extend_from_slice(&0u16.to_le_bytes());
+        // Internal file attributes
+        data.extend_from_slice(&0u16.to_le_bytes());
+        // External file attributes
+        data.extend_from_slice(&0u32.to_le_bytes());
+        // Relative offset of local header
+        data.extend_from_slice(&local_header_offset.to_le_bytes());
+        // File name
+        data.extend_from_slice(file_name_bytes);
+        data
+    }
+
+    // Helper: Local File Headerを生成
+    fn create_local_file_header(
+        file_name: &str,
+        file_data: &[u8],
+        compression_method: u16,
+        crc32: u32,
+        is_utf8: bool,
+    ) -> Vec<u8> {
+        let mut data = Vec::new();
+        let file_name_bytes = file_name.as_bytes();
+        let flag: u16 = if is_utf8 { 1 << 11 } else { 0 };
+
+        // Signature
+        data.extend_from_slice(&LFH_SIGNATURE.to_le_bytes());
+        // Version needed
+        data.extend_from_slice(&20u16.to_le_bytes());
+        // General purpose bit flag
+        data.extend_from_slice(&flag.to_le_bytes());
+        // Compression method
+        data.extend_from_slice(&compression_method.to_le_bytes());
+        // Last mod time
+        data.extend_from_slice(&0u16.to_le_bytes());
+        // Last mod date
+        data.extend_from_slice(&0u16.to_le_bytes());
+        // CRC32
+        data.extend_from_slice(&crc32.to_le_bytes());
+        // Compressed size
+        data.extend_from_slice(&(file_data.len() as u32).to_le_bytes());
+        // Uncompressed size
+        data.extend_from_slice(&(file_data.len() as u32).to_le_bytes());
+        // File name length
+        data.extend_from_slice(&(file_name_bytes.len() as u16).to_le_bytes());
+        // Extra field length
+        data.extend_from_slice(&0u16.to_le_bytes());
+        // File name
+        data.extend_from_slice(file_name_bytes);
+        // File data
+        data.extend_from_slice(file_data);
+        data
+    }
+
+    // ===== parse_eocd tests =====
+
+    #[test]
+    fn test_parse_eocd_valid() {
+        let eocd_data = create_minimal_eocd(1, 46, 100);
+        let mut cursor = io::Cursor::new(eocd_data);
+
+        let result = parse_eocd(&mut cursor);
+        assert!(result.is_ok());
+
+        let eocd = result.unwrap();
+        assert_eq!(eocd.signature, EOCD_SIGNATURE);
+        assert_eq!(eocd.total_number_of_entries_in_cd, 1);
+        assert_eq!(eocd.cd_size, 46);
+        assert_eq!(eocd.cd_offset, 100);
+        assert_eq!(eocd.eocd_size, 22);
+    }
+
+    #[test]
+    fn test_parse_eocd_with_comment() {
+        let mut data = create_minimal_eocd(0, 0, 0);
+        // コメント長を5に変更（オフセット20-21）
+        data[20] = 5;
+        data[21] = 0;
+        // コメント追加
+        data.extend_from_slice(b"hello");
+
+        let mut cursor = io::Cursor::new(data);
+        let result = parse_eocd(&mut cursor);
+        assert!(result.is_ok());
+
+        let eocd = result.unwrap();
+        assert_eq!(eocd.comment, b"hello");
+        assert_eq!(eocd.eocd_size, 27); // 22 + 5
+    }
+
+    #[test]
+    fn test_parse_eocd_too_short() {
+        let data = vec![0u8; 21]; // 22バイト未満
+        let mut cursor = io::Cursor::new(data);
+
+        let result = parse_eocd(&mut cursor);
+        assert!(matches!(result, Err(ParseEOCDError::TooShortDataLength)));
+    }
+
+    // ===== parse_cd tests =====
+
+    #[test]
+    fn test_parse_cd_single_entry() {
+        let cd_data = create_cd_header("test.txt", 0, 5, 5, 0x12345678, COMPRESSION_METHOD_STORED, true);
+        let mut cursor = io::Cursor::new(cd_data);
+
+        let result = parse_cd(&mut cursor, 1);
+        assert!(result.is_ok());
+
+        let headers = result.unwrap();
+        assert_eq!(headers.len(), 1);
+        assert_eq!(headers[0].file_name, "test.txt");
+        assert_eq!(headers[0].compressed_size, 5);
+        assert_eq!(headers[0].crc32, 0x12345678);
+        assert!(headers[0].is_utf8);
+        assert!(!headers[0].is_encrypted);
+    }
+
+    #[test]
+    fn test_parse_cd_invalid_signature() {
+        let mut data = vec![0u8; 46];
+        // 不正なシグネチャ
+        data[0..4].copy_from_slice(&0x12345678u32.to_le_bytes());
+
+        let mut cursor = io::Cursor::new(data);
+        let result = parse_cd(&mut cursor, 1);
+        assert!(matches!(result, Err(ParseCDError::InvalidSignature)));
+    }
+
+    // ===== load_file tests =====
+
+    #[test]
+    fn test_load_file_stored() {
+        let file_content = b"Hello";
+        let crc32 = 0xF7D18982u32; // CRC32 of "Hello"
+        let lfh = create_local_file_header("test.txt", file_content, COMPRESSION_METHOD_STORED, crc32, true);
+
+        let cdh = CDHeader {
+            signature: CD_SIGNATURE,
+            version_made_by: 20,
+            version_needed_to_extract: 20,
+            general_purpose_bit_flag: 1 << 11,
+            compression_method: COMPRESSION_METHOD_STORED,
+            last_mod_file_time: 0,
+            last_mod_file_date: 0,
+            crc32,
+            compressed_size: 5,
+            uncompressed_size: 5,
+            file_name_length: 8,
+            extra_field_length: 0,
+            file_comment_length: 0,
+            disk_number_start: 0,
+            internal_file_attributes: 0,
+            external_file_attributes: 0,
+            relative_offset_of_local_header: 0,
+            file_name: "test.txt".to_string(),
+            extra_field: vec![],
+            file_comment: vec![],
+            is_utf8: true,
+            is_encrypted: false,
+        };
+
+        let cursor = io::Cursor::new(lfh);
+        let result = load_file(cursor, &cdh);
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap(), b"Hello");
+    }
+
+    #[test]
+    fn test_load_file_invalid_signature() {
+        let mut data = vec![0u8; 50];
+        // 不正なシグネチャ
+        data[0..4].copy_from_slice(&0x12345678u32.to_le_bytes());
+
+        let cdh = CDHeader {
+            signature: CD_SIGNATURE,
+            version_made_by: 20,
+            version_needed_to_extract: 20,
+            general_purpose_bit_flag: 0,
+            compression_method: COMPRESSION_METHOD_STORED,
+            last_mod_file_time: 0,
+            last_mod_file_date: 0,
+            crc32: 0,
+            compressed_size: 0,
+            uncompressed_size: 0,
+            file_name_length: 0,
+            extra_field_length: 0,
+            file_comment_length: 0,
+            disk_number_start: 0,
+            internal_file_attributes: 0,
+            external_file_attributes: 0,
+            relative_offset_of_local_header: 0,
+            file_name: "".to_string(),
+            extra_field: vec![],
+            file_comment: vec![],
+            is_utf8: false,
+            is_encrypted: false,
+        };
+
+        let cursor = io::Cursor::new(data);
+        let result = load_file(cursor, &cdh);
+        assert!(matches!(result, Err(LoadFileError::UnmatchHeader)));
+    }
+
+    // ===== decode_file_name tests =====
+
+    #[test]
+    fn test_decode_file_name_utf8() {
+        let name = "test.txt".as_bytes().to_vec();
+        let result = decode_file_name(&name, true);
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap(), "test.txt");
+    }
+
+    #[test]
+    fn test_decode_file_name_utf8_japanese() {
+        let name = "テスト.txt".as_bytes().to_vec();
+        let result = decode_file_name(&name, true);
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap(), "テスト.txt");
+    }
+
+    #[test]
+    fn test_decode_file_name_ascii_as_sjis() {
+        // ASCIIはShift_JISでも同じ
+        let name = "test.txt".as_bytes().to_vec();
+        let result = decode_file_name(&name, false);
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap(), "test.txt");
+    }
+
+    // ===== 追加テスト =====
+
+    // Helper: テスト用CDHeader構造体を生成
+    fn create_cdh_for_test(
+        file_name: &str,
+        compressed_size: u32,
+        uncompressed_size: u32,
+        crc32: u32,
+        compression_method: u16,
+    ) -> CDHeader {
+        CDHeader {
+            signature: CD_SIGNATURE,
+            version_made_by: 20,
+            version_needed_to_extract: 20,
+            general_purpose_bit_flag: 1 << 11, // UTF-8
+            compression_method,
+            last_mod_file_time: 0,
+            last_mod_file_date: 0,
+            crc32,
+            compressed_size,
+            uncompressed_size,
+            file_name_length: file_name.len() as u16,
+            extra_field_length: 0,
+            file_comment_length: 0,
+            disk_number_start: 0,
+            internal_file_attributes: 0,
+            external_file_attributes: 0,
+            relative_offset_of_local_header: 0,
+            file_name: file_name.to_string(),
+            extra_field: vec![],
+            file_comment: vec![],
+            is_utf8: true,
+            is_encrypted: false,
+        }
+    }
+
+    // Helper: DEFLATE圧縮用Local File Headerを生成
+    fn create_local_file_header_deflated(
+        file_name: &str,
+        compressed_data: &[u8],
+        uncompressed_size: u32,
+        crc32: u32,
+    ) -> Vec<u8> {
+        let mut data = Vec::new();
+        let file_name_bytes = file_name.as_bytes();
+        let flag: u16 = 1 << 11; // UTF-8
+
+        // Signature
+        data.extend_from_slice(&LFH_SIGNATURE.to_le_bytes());
+        // Version needed
+        data.extend_from_slice(&20u16.to_le_bytes());
+        // General purpose bit flag
+        data.extend_from_slice(&flag.to_le_bytes());
+        // Compression method (DEFLATE)
+        data.extend_from_slice(&COMPRESSION_METHOD_DEFLATED.to_le_bytes());
+        // Last mod time
+        data.extend_from_slice(&0u16.to_le_bytes());
+        // Last mod date
+        data.extend_from_slice(&0u16.to_le_bytes());
+        // CRC32
+        data.extend_from_slice(&crc32.to_le_bytes());
+        // Compressed size
+        data.extend_from_slice(&(compressed_data.len() as u32).to_le_bytes());
+        // Uncompressed size
+        data.extend_from_slice(&uncompressed_size.to_le_bytes());
+        // File name length
+        data.extend_from_slice(&(file_name_bytes.len() as u16).to_le_bytes());
+        // Extra field length
+        data.extend_from_slice(&0u16.to_le_bytes());
+        // File name
+        data.extend_from_slice(file_name_bytes);
+        // Compressed data
+        data.extend_from_slice(compressed_data);
+        data
+    }
+
+    #[test]
+    fn test_load_file_deflated() {
+        use libflate::deflate::Encoder;
+        use std::io::Write;
+
+        let original_data = b"Hello, World! This is a test for DEFLATE compression.";
+        let crc32 = 0x7D6C5C3Au32; // 事前計算したCRC32
+
+        // DEFLATEで圧縮
+        let mut encoder = Encoder::new(Vec::new());
+        encoder.write_all(original_data).unwrap();
+        let compressed_data = encoder.finish().into_result().unwrap();
+
+        let lfh = create_local_file_header_deflated(
+            "test.txt",
+            &compressed_data,
+            original_data.len() as u32,
+            crc32,
+        );
+
+        let cdh = create_cdh_for_test(
+            "test.txt",
+            compressed_data.len() as u32,
+            original_data.len() as u32,
+            crc32,
+            COMPRESSION_METHOD_DEFLATED,
+        );
+
+        let cursor = io::Cursor::new(lfh);
+        let result = load_file(cursor, &cdh);
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap(), original_data);
+    }
+
+    #[test]
+    fn test_parse_cd_multiple_entries() {
+        let mut cd_data = Vec::new();
+
+        // 1つ目のエントリ
+        cd_data.extend(create_cd_header(
+            "file1.txt", 0, 10, 10, 0x11111111, COMPRESSION_METHOD_STORED, true
+        ));
+        // 2つ目のエントリ
+        cd_data.extend(create_cd_header(
+            "file2.txt", 100, 20, 20, 0x22222222, COMPRESSION_METHOD_STORED, true
+        ));
+        // 3つ目のエントリ
+        cd_data.extend(create_cd_header(
+            "subdir/file3.txt", 200, 30, 30, 0x33333333, COMPRESSION_METHOD_DEFLATED, true
+        ));
+
+        let mut cursor = io::Cursor::new(cd_data);
+        let result = parse_cd(&mut cursor, 3);
+        assert!(result.is_ok());
+
+        let headers = result.unwrap();
+        assert_eq!(headers.len(), 3);
+
+        assert_eq!(headers[0].file_name, "file1.txt");
+        assert_eq!(headers[0].crc32, 0x11111111);
+
+        assert_eq!(headers[1].file_name, "file2.txt");
+        assert_eq!(headers[1].compressed_size, 20);
+
+        assert_eq!(headers[2].file_name, "subdir/file3.txt");
+        assert_eq!(headers[2].compression_method, COMPRESSION_METHOD_DEFLATED);
+    }
+
+    #[test]
+    fn test_load_file_unsupported_compression() {
+        let file_name = "test.txt";
+        let file_data = b"test";
+        let unsupported_method: u16 = 99; // 未対応の圧縮方式
+
+        // Local File Header with unsupported compression
+        let mut lfh = Vec::new();
+        lfh.extend_from_slice(&LFH_SIGNATURE.to_le_bytes());
+        lfh.extend_from_slice(&20u16.to_le_bytes()); // version
+        lfh.extend_from_slice(&(1u16 << 11).to_le_bytes()); // flag (UTF-8)
+        lfh.extend_from_slice(&unsupported_method.to_le_bytes()); // compression method
+        lfh.extend_from_slice(&0u16.to_le_bytes()); // time
+        lfh.extend_from_slice(&0u16.to_le_bytes()); // date
+        lfh.extend_from_slice(&0u32.to_le_bytes()); // crc32
+        lfh.extend_from_slice(&(file_data.len() as u32).to_le_bytes()); // compressed size
+        lfh.extend_from_slice(&(file_data.len() as u32).to_le_bytes()); // uncompressed size
+        lfh.extend_from_slice(&(file_name.len() as u16).to_le_bytes()); // file name length
+        lfh.extend_from_slice(&0u16.to_le_bytes()); // extra field length
+        lfh.extend_from_slice(file_name.as_bytes());
+        lfh.extend_from_slice(file_data);
+
+        let cdh = CDHeader {
+            signature: CD_SIGNATURE,
+            version_made_by: 20,
+            version_needed_to_extract: 20,
+            general_purpose_bit_flag: 1 << 11,
+            compression_method: unsupported_method,
+            last_mod_file_time: 0,
+            last_mod_file_date: 0,
+            crc32: 0,
+            compressed_size: file_data.len() as u32,
+            uncompressed_size: file_data.len() as u32,
+            file_name_length: file_name.len() as u16,
+            extra_field_length: 0,
+            file_comment_length: 0,
+            disk_number_start: 0,
+            internal_file_attributes: 0,
+            external_file_attributes: 0,
+            relative_offset_of_local_header: 0,
+            file_name: file_name.to_string(),
+            extra_field: vec![],
+            file_comment: vec![],
+            is_utf8: true,
+            is_encrypted: false,
+        };
+
+        let cursor = io::Cursor::new(lfh);
+        let result = load_file(cursor, &cdh);
+        assert!(matches!(
+            result,
+            Err(LoadFileError::UnsupportedCompressionMethod(99))
+        ));
+    }
+
+    #[test]
+    fn test_load_file_stored_with_helper() {
+        // create_cdh_for_testヘルパーを使った簡潔なテスト
+        let file_content = b"Hello";
+        let crc32 = 0xF7D18982u32;
+        let lfh = create_local_file_header("test.txt", file_content, COMPRESSION_METHOD_STORED, crc32, true);
+        let cdh = create_cdh_for_test("test.txt", 5, 5, crc32, COMPRESSION_METHOD_STORED);
+
+        let cursor = io::Cursor::new(lfh);
+        let result = load_file(cursor, &cdh);
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap(), b"Hello");
+    }
+}
