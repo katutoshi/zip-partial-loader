@@ -8,7 +8,9 @@
     "dev": "webpack serve --open",
     "clean": "rm -rf dist lib && cd wasm && rm -rf pkg && cargo clean",
     "build": "tsc && webpack --config webpack.config.lszl.js --mode=${NODE_ENV:-development}",
-    "prepack": "$npm_execpath run build"
+    "prepack": "$npm_execpath run build",
+    "test": "vitest",
+    "test:run": "vitest run"
   },
   "author": "katutoshi",
   "contributors": [
@@ -21,6 +23,7 @@
     "mime": "^4.1.0",
     "ts-loader": "^9.5.4",
     "typescript": "^5.9.3",
+    "vitest": "^4.0.18",
     "webpack": "^5.104.1",
     "webpack-cli": "^6.0.1",
     "webpack-dev-server": "^5.2.3"
