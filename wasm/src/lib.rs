@@ -5,12 +5,16 @@ mod zip;
 use js_sys::{Array, Error};
 use wasm_bindgen::prelude::*;
 use std::io::Cursor;
-use std::cmp;
+use std::collections::HashMap;
 
 #[wasm_bindgen]
 pub struct LSZR {
     eocd: zip::EOCD,
     entries: Vec<zip::CDHeader>,
+    // ファイル名 → entriesインデックスのマップ (O(1)検索用)
+    entry_map: HashMap<String, usize>,
+    // オフセット順にソートされた (offset, index) のリスト (次エントリ検索用)
+    sorted_offsets: Vec<(u32, usize)>,
 }
 
 #[wasm_bindgen]
@@ -43,7 +47,9 @@ impl LSZR {
         
         let result = Self {
             eocd: eocd,
-            entries: vec![]
+            entries: vec![],
+            entry_map: HashMap::new(),
+            sorted_offsets: vec![],
         };
 
         Result::Ok(result)
@@ -57,33 +63,59 @@ impl LSZR {
             self.eocd.total_number_of_entries_in_cd as usize,
         )?;
 
+        let count = self.entries.len();
+        self.entry_map = HashMap::with_capacity(count);
+        self.sorted_offsets = Vec::with_capacity(count);
         let names = Array::new();
-        for e in &self.entries {
-            let name = JsValue::from(e.file_name.clone());
-            names.push(&name);
+
+        // 1回のループで全て処理（file_name.clone()を1回に削減）
+        for (idx, entry) in self.entries.iter().enumerate() {
+            self.entry_map.insert(entry.file_name.clone(), idx);
+            self.sorted_offsets.push((entry.relative_offset_of_local_header, idx));
+            names.push(&JsValue::from(&entry.file_name));
         }
+
+        // ソート済みかチェック（ZIPは通常オフセット順なのでスキップできる可能性大）
+        let needs_sort = self.sorted_offsets.windows(2)
+            .any(|w| w[0].0 > w[1].0);
+        if needs_sort {
+            self.sorted_offsets.sort_by_key(|(offset, _)| *offset);
+        }
+
         Result::Ok(names)
     }
 
     #[wasm_bindgen(catch, js_name = getRange)]
     pub fn get_range(&mut self, name: String) -> Result<Range, JsValue> {
-        for entry in &self.entries {
-            if name == entry.file_name {
-                let mut end = self.eocd.cd_offset;
-                for next in &self.entries {
-                    if next.relative_offset_of_local_header <= entry.relative_offset_of_local_header {
-                        continue;
-                    }
-                    end = cmp::min(end, next.relative_offset_of_local_header);
-                }
-                return Result::Ok(Range {
-                    offset: entry.relative_offset_of_local_header,
-                    size: end - entry.relative_offset_of_local_header - 1,
-                });
+        // O(1)でエントリを検索
+        let idx = match self.entry_map.get(&name) {
+            Some(&idx) => idx,
+            None => {
+                let message = format!("Entry not found: {}", name);
+                return Err(JsValue::from(Error::new(message.as_str())));
             }
-        }
-        let message = format!("Entry not found: {}", name);
-        Err(JsValue::from(Error::new(message.as_str())))
+        };
+
+        let entry = &self.entries[idx];
+        let entry_offset = entry.relative_offset_of_local_header;
+
+        // 二分探索で次のエントリのオフセットを見つける
+        let end = match self.sorted_offsets.binary_search_by_key(&entry_offset, |(offset, _)| *offset) {
+            Ok(pos) => {
+                // 次のエントリがあればそのオフセット、なければCDの開始位置
+                if pos + 1 < self.sorted_offsets.len() {
+                    self.sorted_offsets[pos + 1].0
+                } else {
+                    self.eocd.cd_offset
+                }
+            }
+            Err(_) => self.eocd.cd_offset, // 通常は到達しない
+        };
+
+        Result::Ok(Range {
+            offset: entry_offset,
+            size: end - entry_offset - 1,
+        })
     }
 
     #[wasm_bindgen(catch, js_name = getData)]
@@ -99,12 +131,11 @@ impl LSZR {
     }
 
     fn find_entry(&self, name: String) -> Result<&zip::CDHeader, JsValue> {
-        for entry in &self.entries {
-            if entry.file_name == name {
-                return Result::Ok(entry);
-            }
+        // O(1)でエントリを検索
+        match self.entry_map.get(&name) {
+            Some(&idx) => Result::Ok(&self.entries[idx]),
+            None => Err(JsValue::from(Error::new("Entry not found."))),
         }
-        Err(JsValue::from(Error::new("Entry not found.")))
     }
 
     #[wasm_bindgen(getter, js_name=cdRange)]

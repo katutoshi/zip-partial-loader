@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>LSZL Benchmark</title>
+  <style>
+    body { font-family: monospace; padding: 20px; max-width: 900px; }
+    #results { white-space: pre; background: #f0f0f0; padding: 10px; margin-top: 10px; font-size: 13px; line-height: 1.4; }
+    button { padding: 10px 20px; font-size: 16px; margin-right: 10px; margin-bottom: 10px; }
+    select { padding: 8px; font-size: 14px; margin-right: 10px; margin-bottom: 10px; }
+    h1 { font-size: 20px; }
+    .controls { margin-bottom: 10px; }
+  </style>
+</head>
+<body>
+  <h1>LSZL Performance Benchmark</h1>
+  <div class="controls">
+    <label>Test File: </label>
+    <select id="testFile">
+      <option value="lenna.epub">lenna.epub (small)</option>
+      <option value="test-500-entries.epub">test-500-entries.epub (500 entries)</option>
+    </select>
+  </div>
+  <button id="runBenchmark">Run Benchmark</button>
+  <div id="results">Click a button to start...</div>
+
+  <script src="./lszl.js"></script>
+  <script>
+    const results = document.getElementById('results');
+    const testFileSelect = document.getElementById('testFile');
+
+    function log(msg) {
+      results.textContent += msg + '\n';
+      console.log(msg);
+    }
+
+    function getTestFile() {
+      return testFileSelect.value;
+    }
+
+    async function runBenchmark(iterations = 5) {
+      const url = getTestFile();
+      results.textContent = `=== LSZL Benchmark ===\nFile: ${url}\nIterations: ${iterations}\n`;
+
+      try {
+        // 1. 初期化ベンチマーク (EPUB読み込み + EOCD解析)
+        log('[1] Initialize + Parse EOCD');
+        const initTimes = [];
+        for (let i = 0; i < iterations; i++) {
+          const start = performance.now();
+          const loader = new LSZL({ url, worker: './lszlw.js' });
+          await loader.getEntryNames();
+          const elapsed = performance.now() - start;
+          initTimes.push(elapsed);
+        }
+        const avgInit = initTimes.reduce((a, b) => a + b) / initTimes.length;
+        log(`  Avg: ${avgInit.toFixed(2)}ms | Min: ${Math.min(...initTimes).toFixed(2)}ms | Max: ${Math.max(...initTimes).toFixed(2)}ms`);
+
+        // 2. エントリ一覧取得ベンチマーク
+        log('');
+        log('[2] Get Entry Names (cached)');
+        const loader = new LSZL({ url, worker: './lszlw.js' });
+        const entries = await loader.getEntryNames();
+        log(`  Total entries: ${entries.length}`);
+
+        const listTimes = [];
+        for (let i = 0; i < iterations; i++) {
+          const start = performance.now();
+          await loader.getEntryNames();
+          const elapsed = performance.now() - start;
+          listTimes.push(elapsed);
+        }
+        const avgList = listTimes.reduce((a, b) => a + b) / listTimes.length;
+        log(`  Avg: ${avgList.toFixed(2)}ms | Min: ${Math.min(...listTimes).toFixed(2)}ms | Max: ${Math.max(...listTimes).toFixed(2)}ms`);
+
+        // 3. 全ファイル読み込みベンチマーク
+        log('');
+        log('[3] Read All Files');
+        const readTimes = [];
+        let totalBytes = 0;
+        for (let i = 0; i < iterations; i++) {
+          const start = performance.now();
+          for (const entry of entries) {
+            const buf = await loader.getBuffer(entry);
+            if (i === 0) totalBytes += buf.byteLength;
+          }
+          const elapsed = performance.now() - start;
+          readTimes.push(elapsed);
+        }
+        const avgRead = readTimes.reduce((a, b) => a + b) / readTimes.length;
+        log(`  Total size: ${(totalBytes / 1024).toFixed(1)}KB`);
+        log(`  Avg: ${avgRead.toFixed(2)}ms | Min: ${Math.min(...readTimes).toFixed(2)}ms | Max: ${Math.max(...readTimes).toFixed(2)}ms`);
+        log(`  Per entry: ${(avgRead / entries.length).toFixed(2)}ms`);
+        log(`  Throughput: ${(totalBytes / avgRead / 1024).toFixed(2)}MB/s`);
+
+        // 4. 特定ファイル (HTML/XML) 読み込み
+        log('');
+        log('[4] Read HTML/XML files only');
+        const htmlFiles = entries.filter(e => /\.(html?|xml|xhtml|opf|ncx)$/i.test(e));
+        log(`  HTML/XML files: ${htmlFiles.length}`);
+        if (htmlFiles.length > 0) {
+          const htmlTimes = [];
+          for (let i = 0; i < iterations; i++) {
+            const start = performance.now();
+            for (const entry of htmlFiles) {
+              await loader.getBuffer(entry);
+            }
+            const elapsed = performance.now() - start;
+            htmlTimes.push(elapsed);
+          }
+          const avgHtml = htmlTimes.reduce((a, b) => a + b) / htmlTimes.length;
+          log(`  Avg: ${avgHtml.toFixed(2)}ms | Per file: ${(avgHtml / htmlFiles.length).toFixed(2)}ms`);
+        }
+
+        // 5. 画像ファイル読み込み
+        log('');
+        log('[5] Read Image files only');
+        const imageFiles = entries.filter(e => /\.(jpe?g|png|gif|webp|svg)$/i.test(e));
+        log(`  Image files: ${imageFiles.length}`);
+        if (imageFiles.length > 0) {
+          const imgTimes = [];
+          let imgBytes = 0;
+          for (let i = 0; i < iterations; i++) {
+            const start = performance.now();
+            for (const entry of imageFiles) {
+              const buf = await loader.getBuffer(entry);
+              if (i === 0) imgBytes += buf.byteLength;
+            }
+            const elapsed = performance.now() - start;
+            imgTimes.push(elapsed);
+          }
+          const avgImg = imgTimes.reduce((a, b) => a + b) / imgTimes.length;
+          log(`  Total size: ${(imgBytes / 1024).toFixed(1)}KB`);
+          log(`  Avg: ${avgImg.toFixed(2)}ms | Per file: ${(avgImg / imageFiles.length).toFixed(2)}ms`);
+        }
+
+        log('\n=== Done ===');
+      } catch (e) {
+        log(`Error: ${e.message}`);
+        console.error(e);
+      }
+    }
+
+    document.getElementById('runBenchmark').onclick = () => runBenchmark(5);
+  </script>
+</body>
+</html>
