@@ -112,7 +112,7 @@ impl LSZR {
                     self.eocd.cd_offset
                 }
             }
-            Err(_) => self.eocd.cd_offset, // 通常は到達しない
+            Err(_) => unreachable!("offset not found in sorted_offsets")
         };
 
         Result::Ok(Range {
@@ -123,7 +123,7 @@ impl LSZR {
 
     #[wasm_bindgen(js_name = getData)]
     pub fn get_data(&mut self, name: String, data: Vec<u8>) -> Result<Vec<u8>, JsValue> {
-        let entry = self.find_entry(name)?;
+        let entry = self.find_entry(&name)?;
         let reader = Cursor::new(data);
         let result = zip::load_file(reader, entry)?;
 
@@ -133,9 +133,9 @@ impl LSZR {
         Ok(result)
     }
 
-    fn find_entry(&self, name: String) -> Result<&zip::CDHeader, JsValue> {
+    fn find_entry(&self, name: &str) -> Result<&zip::CDHeader, JsValue> {
         // O(1)でエントリを検索
-        match self.entry_map.get(&name) {
+        match self.entry_map.get(name) {
             Some(&idx) => Result::Ok(&self.entries[idx]),
             None => Err(JsValue::from(Error::new("Entry not found."))),
         }
