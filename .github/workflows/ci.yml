@@ -88,6 +88,12 @@ jobs:
       - name: Build wasm (fail fast)
         run: ./wasm/build.sh
 
+      # tsconfig.lszlw.json は wasm/pkg の型定義を前提とするため、
+      # wasm ビルドが済んでいるこの build ジョブでしか実行できない
+      # (check ジョブには wasm/pkg が無い)。
+      - name: Type check (tsc --noEmit, lszlw)
+        run: npx tsc --noEmit -p tsconfig.lszlw.json
+
       - name: Build (webpack, production)
         env:
           NODE_ENV: production
