@@ -1,10 +1,7 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { WorkerState } from '../types';
 
-// window.location.href をテスト実行環境で使えるようにする
-(globalThis as any).window = { location: { href: 'https://example.com/' } };
-
-// Mocking WorkerWrapper before LSZL import
+// WorkerWrapper のモック共有ストア (LSZL のコンストラクタ経由で追加される)
 type WorkerWrapperMock = {
   getState: ReturnType<typeof vi.fn>;
   getBuffer: ReturnType<typeof vi.fn>;
@@ -54,13 +51,31 @@ vi.mock('./worker-wrapper', () => {
   return { default: MockWorkerWrapper };
 });
 
-// Dynamically import AFTER the mock is registered
 let LSZL: typeof import('./lszl').default;
-beforeEach(async () => {
-  wrappers.length = 0;
-  stateOverrides.length = 0;
+
+// window は LSZL コンストラクタで URL 解決に使われるため beforeAll で用意する
+let hadWindow = false;
+let originalWindow: unknown;
+
+beforeAll(async () => {
+  hadWindow = 'window' in globalThis;
+  originalWindow = (globalThis as any).window;
+  (globalThis as any).window = { location: { href: 'https://example.com/' } };
   const mod = await import('./lszl');
   LSZL = mod.default;
+});
+
+afterAll(() => {
+  if (hadWindow) {
+    (globalThis as any).window = originalWindow;
+  } else {
+    delete (globalThis as any).window;
+  }
+});
+
+beforeEach(() => {
+  wrappers.length = 0;
+  stateOverrides.length = 0;
 });
 
 afterEach(() => {
@@ -68,53 +83,72 @@ afterEach(() => {
 });
 
 describe('LSZL constructor', () => {
-  it('resolves URL against window.location.href', () => {
+  it('should resolve URL against window.location.href for relative paths', () => {
     const lszl = new LSZL({ url: '/foo.zip' });
     expect(lszl.url).toBe('https://example.com/foo.zip');
   });
 
-  it('starts a single worker when initial state has fallback=true', async () => {
+  it('should start only one worker when initial state has fallback=true', async () => {
     stateOverrides[0] = { fallback: true };
     const lszl = new LSZL({ url: 'https://example.com/file.zip' });
     await lszl.getEntryNames();
     expect(wrappers).toHaveLength(1);
-    // fallback状態の場合、後続のcoworkerは作らない
+    // fallback 状態では co-worker を作らず、onFallback ハンドラも未セット
     expect(wrappers[0].onFallback).toBeUndefined();
   });
 
-  it('starts multiple workers when initial state is not fallback (default 4)', async () => {
+  it('should pass noUseCache=false explicitly to the first worker', async () => {
+    // M5 対策: 先頭 worker に対する noUseCache: false が失われる (=true になる) と
+    // キャッシュを一切使わない worker になってしまう。
+    const lszl = new LSZL({ url: 'https://example.com/file.zip', multiply: 1 });
+    await lszl.getEntryNames();
+    expect(wrappers[0].__params.noUseCache).toBe(false);
+  });
+
+  it('should start LANE_MULTIPLY (4) workers by default when not fallback', async () => {
     const lszl = new LSZL({ url: 'https://example.com/file.zip' });
     await lszl.getEntryNames();
     expect(wrappers).toHaveLength(4);
     expect(wrappers[0].__params.forceKeepCache).toBeUndefined();
-    // co-workers use forceKeepCache=true
+    // co-worker たちは forceKeepCache=true
     for (let i = 1; i < 4; i++) {
       expect(wrappers[i].__params.forceKeepCache).toBe(true);
     }
   });
 
-  it('honors params.multiply and clamps to at least 1', async () => {
+  it('should honor params.multiply when >= 2', async () => {
     const lszl = new LSZL({ url: 'https://example.com/file.zip', multiply: 2 });
     await lszl.getEntryNames();
     expect(wrappers).toHaveLength(2);
   });
 
-  it('clamps multiply=0 to LANE_MULTIPLY default (4)', async () => {
+  it('should clamp multiply to 1 when a negative value is given (Math.max)', async () => {
+    // 実装は `params.multiply && Math.max(params.multiply, 1) || LANE_MULTIPLY`。
+    // 負値 (-3) は truthy なので Math.max(-3, 1) = 1 に clamp される。
+    const lszl = new LSZL({ url: 'https://example.com/file.zip', multiply: -3 });
+    await lszl.getEntryNames();
+    expect(wrappers).toHaveLength(1);
+  });
+
+  it('should fall back to default (4) when multiply=0 (falsy)', async () => {
     const lszl = new LSZL({ url: 'https://example.com/file.zip', multiply: 0 });
     await lszl.getEntryNames();
-    // multiply=0 falsy → default 4
     expect(wrappers).toHaveLength(4);
   });
 
-  it('passes worker override to WorkerWrapper', async () => {
-    const lszl = new LSZL({ url: 'https://example.com/file.zip', worker: 'custom.js', multiply: 1 });
+  it('should pass worker override to WorkerWrapper', async () => {
+    const lszl = new LSZL({
+      url: 'https://example.com/file.zip',
+      worker: 'custom.js',
+      multiply: 1,
+    });
     await lszl.getEntryNames();
     expect(wrappers[0].__params.worker).toBe('custom.js');
   });
 });
 
 describe('LSZL.getEntryNames', () => {
-  it('returns entry names from the first worker state', async () => {
+  it('should return entry names from the first worker state', async () => {
     stateOverrides[0] = { entryNames: ['x', 'y'] };
     const lszl = new LSZL({ url: 'https://example.com/file.zip', multiply: 1 });
     await expect(lszl.getEntryNames()).resolves.toEqual(['x', 'y']);
@@ -122,22 +156,23 @@ describe('LSZL.getEntryNames', () => {
 });
 
 describe('LSZL.getBuffer', () => {
-  it('returns already-existing buffer from any worker without spawning a new request', async () => {
+  it('should return the same buffer instance from getExistsBuffer without invoking getBuffer', async () => {
     const lszl = new LSZL({ url: 'https://example.com/file.zip', multiply: 3 });
     await lszl.getEntryNames();
 
-    const existing = Promise.resolve(new ArrayBuffer(4));
+    const target = new ArrayBuffer(4);
+    const existing = Promise.resolve(target);
     wrappers[2].getExistsBuffer.mockImplementation((n: string) => (n === 'a.txt' ? existing : undefined));
 
     const result = await lszl.getBuffer('a.txt');
-    expect(result).toBeInstanceOf(ArrayBuffer);
-    // No worker should have getBuffer called
+    // 同一オブジェクトが返る (=キャッシュ経路が本当に効いている)
+    expect(result).toBe(target);
     for (const w of wrappers) {
       expect(w.getBuffer).not.toHaveBeenCalled();
     }
   });
 
-  it('selects the most-free worker (lowest pending count) when no existing buffer', async () => {
+  it('should select the most-free worker (lowest pending count)', async () => {
     const lszl = new LSZL({ url: 'https://example.com/file.zip', multiply: 3 });
     await lszl.getEntryNames();
 
@@ -154,7 +189,7 @@ describe('LSZL.getBuffer', () => {
     expect(wrappers[2].getBuffer).not.toHaveBeenCalled();
   });
 
-  it('falls back to first worker on ties (strict >, not >=)', async () => {
+  it('should stick with the first worker on ties (strict >, not >=)', async () => {
     const lszl = new LSZL({ url: 'https://example.com/file.zip', multiply: 3 });
     await lszl.getEntryNames();
 
@@ -169,7 +204,7 @@ describe('LSZL.getBuffer', () => {
 });
 
 describe('LSZL.abort', () => {
-  it('calls abort on every worker', async () => {
+  it('should call abort on every worker', async () => {
     const lszl = new LSZL({ url: 'https://example.com/file.zip', multiply: 3 });
     await lszl.getEntryNames();
 
@@ -182,43 +217,69 @@ describe('LSZL.abort', () => {
 });
 
 describe('LSZL fallback', () => {
-  it('drops co-workers via terminate when first worker triggers onFallback', async () => {
+  it('should drop co-workers via terminate when first worker triggers onFallback', async () => {
     const lszl = new LSZL({ url: 'https://example.com/file.zip', multiply: 3 });
     await lszl.getEntryNames();
     expect(wrappers).toHaveLength(3);
 
     wrappers[0].__triggerFallback();
-    // Wait for microtasks (fallback は setupWorkers を Promise chain で書き換える)
+    // fallback 内の Promise chain 消化待ち
     await new Promise((r) => setTimeout(r, 0));
 
-    // After fallback, calling getBuffer should route to the surviving worker
     wrappers[0].getPendingCount.mockReturnValue(0);
     wrappers[0].getBuffer.mockResolvedValue(new ArrayBuffer(3));
     await lszl.getBuffer('a.txt');
     expect(wrappers[0].getBuffer).toHaveBeenCalled();
 
-    // Co-workers must have been terminated
+    // co-worker は terminate される
     expect(wrappers[1].terminate).toHaveBeenCalled();
     expect(wrappers[2].terminate).toHaveBeenCalled();
   });
 });
 
 describe('LSZL.prefetchAll', () => {
-  it('sequentially fetches all entries', async () => {
-    stateOverrides[0] = { entryNames: ['a', 'b'] };
+  it('should fetch entries strictly sequentially (next only after previous resolves)', async () => {
+    // 逐次性 (`for (...) await getBuffer(...)`) を検証する。
+    stateOverrides[0] = { entryNames: ['a', 'b', 'c'] };
     const lszl = new LSZL({ url: 'https://example.com/file.zip', multiply: 1 });
-    wrappers.length; // ensure not touched yet
     await lszl.getEntryNames();
 
-    wrappers[0].getBuffer.mockImplementation((name: string) => Promise.resolve(new ArrayBuffer(name.length)));
+    const order: string[] = [];
+    const resolvers: Array<() => void> = [];
+    wrappers[0].getBuffer.mockImplementation(
+      (name: string) =>
+        new Promise<ArrayBuffer>((resolve) => {
+          order.push(`start:${name}`);
+          resolvers.push(() => {
+            order.push(`end:${name}`);
+            resolve(new ArrayBuffer(name.length));
+          });
+        }),
+    );
 
-    await lszl.prefetchAll();
+    const prefetch = lszl.prefetchAll();
+    // prefetchAll → getEntryNames → setupWorkers 解決 → 初回 getBuffer 到達までは
+    // 数マイクロタスク必要
+    const drain = async () => {
+      for (let i = 0; i < 20; i++) await Promise.resolve();
+    };
+    await drain();
+    expect(order).toEqual(['start:a']);
 
-    expect(wrappers[0].getBuffer).toHaveBeenCalledWith('a');
-    expect(wrappers[0].getBuffer).toHaveBeenCalledWith('b');
+    resolvers[0]();
+    await drain();
+    expect(order).toEqual(['start:a', 'end:a', 'start:b']);
+
+    resolvers[1]();
+    await drain();
+    expect(order).toEqual(['start:a', 'end:a', 'start:b', 'end:b', 'start:c']);
+
+    resolvers[2]();
+    await prefetch;
+    expect(order).toEqual(['start:a', 'end:a', 'start:b', 'end:b', 'start:c', 'end:c']);
   });
 
-  it('returns the same in-flight promise when called twice (dedupe)', async () => {
+  it('should return the same in-flight promise when called twice (dedupe)', async () => {
     stateOverrides[0] = { entryNames: ['a'] };
     const lszl = new LSZL({ url: 'https://example.com/file.zip', multiply: 1 });
     await lszl.getEntryNames();
@@ -236,5 +297,26 @@ describe('LSZL.prefetchAll', () => {
 
     resolveBuf(new ArrayBuffer(1));
     await first;
+  });
+
+  it('should reset prefetching state on rejection so a retry is possible', async () => {
+    // M4 対策: `promise.catch(() => { this.prefetching = undefined; })` が消えると
+    // 一度失敗したあと再試行できなくなる (失敗した Promise が返り続ける)。
+    stateOverrides[0] = { entryNames: ['a'] };
+    const lszl = new LSZL({ url: 'https://example.com/file.zip', multiply: 1 });
+    await lszl.getEntryNames();
+
+    wrappers[0].getBuffer.mockRejectedValueOnce(new Error('first-fail'));
+
+    const first = lszl.prefetchAll();
+    await expect(first).rejects.toThrow('first-fail');
+    // catch ハンドラが this.prefetching = undefined を実行するまで待つ
+    for (let i = 0; i < 5; i++) await Promise.resolve();
+
+    // 2 回目は成功シナリオでリトライできる
+    wrappers[0].getBuffer.mockResolvedValueOnce(new ArrayBuffer(4));
+    const second = lszl.prefetchAll();
+    expect(second).not.toBe(first);
+    await expect(second).resolves.toBeUndefined();
   });
 });
