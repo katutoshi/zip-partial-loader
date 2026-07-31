@@ -1,30 +1,32 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { MessageType } from '../types';
 
-// self / postMessage をテスト環境向けに用意
-const globalAny = globalThis as any;
+// worker 本体は self.onmessage / postMessage / new LSZRWrapper に依存する。
+// self, postMessage をテスト側で差し替え、LSZRWrapper は vi.mock で置換する。
 
 type OnMessage = (ev: MessageEvent) => void;
 const selfObj: { onmessage: OnMessage | null } = { onmessage: null };
 const postMessageSpy = vi.fn();
 
-const originalSelf = globalAny.self;
-const originalPostMessage = globalAny.postMessage;
+let hadSelf = false;
+let hadPostMessage = false;
+let originalSelf: unknown;
+let originalPostMessage: unknown;
 
-// LSZRWrapperMock: getState / getBuffer / onUpdateState 呼び出しの経路を実装
-type LSZRWrapperMockConfig = {
+// LSZRWrapper の挙動をテスト毎に差し替えるための共有ハンドル
+type MockConfig = {
   state?: { entryNames: string[]; fallback: boolean };
   buffers?: Record<string, Uint8Array>;
   getBufferImpl?: (name: string, signal: AbortSignal) => Promise<Uint8Array>;
   getStateImpl?: () => Promise<{ entryNames: string[]; fallback: boolean }>;
+  onConstruct?: (params: { onUpdateState: (s: unknown) => void }) => void;
 };
-const mockConfig: LSZRWrapperMockConfig = {};
+const mockConfig: MockConfig = {};
 
 vi.mock('./lszr-wrapper', () => {
   class MockLSZRWrapper {
-    public params: any;
     constructor(params: any) {
-      this.params = params;
+      mockConfig.onConstruct?.(params);
     }
     getState() {
       if (mockConfig.getStateImpl) return mockConfig.getStateImpl();
@@ -41,7 +43,6 @@ vi.mock('./lszr-wrapper', () => {
 });
 
 async function loadWorker() {
-  // Reset self.onmessage and reload module
   selfObj.onmessage = null;
   vi.resetModules();
   await import('./lszlw');
@@ -49,20 +50,34 @@ async function loadWorker() {
 
 beforeEach(async () => {
   postMessageSpy.mockClear();
-  // Clean state
   mockConfig.state = undefined;
   mockConfig.buffers = undefined;
   mockConfig.getBufferImpl = undefined;
   mockConfig.getStateImpl = undefined;
+  mockConfig.onConstruct = undefined;
 
-  globalAny.self = selfObj;
-  globalAny.postMessage = postMessageSpy;
+  hadSelf = 'self' in globalThis;
+  originalSelf = (globalThis as any).self;
+  hadPostMessage = 'postMessage' in globalThis;
+  originalPostMessage = (globalThis as any).postMessage;
+
+  (globalThis as any).self = selfObj;
+  (globalThis as any).postMessage = postMessageSpy;
+
   await loadWorker();
 });
 
 afterEach(() => {
-  globalAny.self = originalSelf;
-  globalAny.postMessage = originalPostMessage;
+  if (hadSelf) {
+    (globalThis as any).self = originalSelf;
+  } else {
+    delete (globalThis as any).self;
+  }
+  if (hadPostMessage) {
+    (globalThis as any).postMessage = originalPostMessage;
+  } else {
+    delete (globalThis as any).postMessage;
+  }
 });
 
 function send(message: any) {
@@ -70,18 +85,17 @@ function send(message: any) {
 }
 
 async function flush() {
-  // 数マイクロタスク実行する
-  for (let i = 0; i < 5; i++) {
+  for (let i = 0; i < 10; i++) {
     await Promise.resolve();
   }
 }
 
 describe('lszlw worker: INIT', () => {
-  it('sets self.onmessage on module load', () => {
+  it('should set self.onmessage on module load', () => {
     expect(typeof selfObj.onmessage).toBe('function');
   });
 
-  it('posts INIT response with WorkerState on success', async () => {
+  it('should post INIT response with WorkerState on success', async () => {
     mockConfig.state = { entryNames: ['x', 'y'], fallback: false };
 
     send({
@@ -100,7 +114,7 @@ describe('lszlw worker: INIT', () => {
     expect(msg.error).toBeUndefined();
   });
 
-  it('posts INIT error when state resolution rejects', async () => {
+  it('should post INIT error when state resolution rejects', async () => {
     mockConfig.getStateImpl = () => Promise.reject(new Error('init boom'));
 
     send({
@@ -117,29 +131,16 @@ describe('lszlw worker: INIT', () => {
     expect(msg.payload).toContain('init boom');
   });
 
-  it('wires onUpdateState so state changes are posted as UPDATE_STATE', async () => {
-    // Capture onUpdateState by not resolving getState quickly
+  it('should wire onUpdateState so state changes are posted as UPDATE_STATE', async () => {
+    // 既知の実装/型不整合: lszlw.ts の UPDATE_STATE 送信形は `{type, state, meta}` だが
+    // types.ts の UpdateStateMessage は `payload` を宣言している。
+    // ここでは実装が実際に送る形 (state) で受信を検証する。後続 PR で
+    // 実装/型定義を統一予定。
     let capturedOnUpdate: ((s: unknown) => void) | undefined;
-    mockConfig.getStateImpl = () => new Promise(() => {}); // never resolves
-
-    // We need access to the constructor params; peek via a custom impl of the mock
-    // The mock stores params on `this.params`, but since we don't have a handle,
-    // use side-effect trick: re-mock via getStateImpl to capture from constructor path.
-    // Simpler: patch the mock class directly here.
-    const mod = await import('./lszr-wrapper');
-    const OriginalMock = mod.default as any;
-    class Spy extends OriginalMock {
-      constructor(params: any) {
-        super(params);
-        capturedOnUpdate = params.onUpdateState;
-      }
-    }
-    (mod as any).default = Spy;
-
-    // Reload the worker module to use the new mock
-    vi.resetModules();
-    postMessageSpy.mockClear();
-    await import('./lszlw');
+    mockConfig.onConstruct = (params) => {
+      capturedOnUpdate = params.onUpdateState;
+    };
+    mockConfig.state = { entryNames: [], fallback: false };
 
     send({
       type: MessageType.INIT,
@@ -148,17 +149,14 @@ describe('lszlw worker: INIT', () => {
     });
 
     await flush();
-
     expect(typeof capturedOnUpdate).toBe('function');
+
     capturedOnUpdate?.({ entryNames: [], fallback: true });
 
     const updates = postMessageSpy.mock.calls.filter(([msg]) => msg?.type === MessageType.UPDATE_STATE);
     expect(updates).toHaveLength(1);
     expect(updates[0][0].state).toEqual({ entryNames: [], fallback: true });
     expect(updates[0][0].meta).toBe('m');
-
-    // Restore
-    (mod as any).default = OriginalMock;
   });
 });
 
@@ -170,7 +168,7 @@ describe('lszlw worker: GET_DATA', () => {
     postMessageSpy.mockClear();
   });
 
-  it('posts data with Transferable when getBuffer resolves', async () => {
+  it('should post data with Transferable when getBuffer resolves', async () => {
     const u8 = new Uint8Array([1, 2, 3, 4]);
     mockConfig.buffers = { a: u8 };
 
@@ -185,7 +183,7 @@ describe('lszlw worker: GET_DATA', () => {
     expect(transferables).toEqual([u8.buffer]);
   });
 
-  it('posts error when getBuffer rejects', async () => {
+  it('should post error when getBuffer rejects', async () => {
     mockConfig.getBufferImpl = () => Promise.reject(new Error('bad'));
 
     send({ type: MessageType.GET_DATA, payload: 'a' });
@@ -200,11 +198,11 @@ describe('lszlw worker: GET_DATA', () => {
     expect(transferables).toBeUndefined();
   });
 
-  it('ignores duplicate GET_DATA for the same entry while first is in flight', async () => {
+  it('should ignore duplicate GET_DATA for the same entry while first is in flight', async () => {
     let calls = 0;
     mockConfig.getBufferImpl = () => {
       calls++;
-      return new Promise(() => {}); // never resolves
+      return new Promise(() => {}); // 未解決
     };
 
     send({ type: MessageType.GET_DATA, payload: 'a' });
@@ -212,11 +210,10 @@ describe('lszlw worker: GET_DATA', () => {
     send({ type: MessageType.GET_DATA, payload: 'a' });
     await flush();
 
-    // getBuffer should be invoked exactly once
     expect(calls).toBe(1);
   });
 
-  it('accepts new GET_DATA for the same entry after previous resolved', async () => {
+  it('should accept new GET_DATA for the same entry after previous resolved', async () => {
     let count = 0;
     mockConfig.getBufferImpl = () => {
       count++;
@@ -230,6 +227,31 @@ describe('lszlw worker: GET_DATA', () => {
 
     expect(count).toBe(2);
   });
+
+  it('should accept a re-request for the same entry after previous REJECTED', async () => {
+    // M9 対策: reject 経路で `delete dataHandlers[entryName]` が消えると、
+    // 同名エントリは以降ずっと重複判定に引っかかって無視され続けるデッドロック。
+    let count = 0;
+    mockConfig.getBufferImpl = () => {
+      count++;
+      if (count === 1) return Promise.reject(new Error('first-fail'));
+      return Promise.resolve(new Uint8Array([count]));
+    };
+
+    send({ type: MessageType.GET_DATA, payload: 'a' });
+    await flush();
+    // 1 回目の失敗レスポンスが返っていること
+    const firstResp = postMessageSpy.mock.calls.filter(([msg]) => msg?.type === MessageType.GET_DATA);
+    expect(firstResp).toHaveLength(1);
+    expect(firstResp[0][0].error).toBe(true);
+
+    // 同名エントリを再送 → getBuffer が再度呼ばれる (dataHandlers から削除済み)
+    send({ type: MessageType.GET_DATA, payload: 'a' });
+    await flush();
+    expect(count).toBe(2);
+    const respCount = postMessageSpy.mock.calls.filter(([msg]) => msg?.type === MessageType.GET_DATA).length;
+    expect(respCount).toBe(2);
+  });
 });
 
 describe('lszlw worker: ABORT_DATA', () => {
@@ -240,11 +262,11 @@ describe('lszlw worker: ABORT_DATA', () => {
     postMessageSpy.mockClear();
   });
 
-  it('calls abort on the pending controller for the entry', async () => {
+  it('should call abort on the pending controller for the entry', async () => {
     let receivedSignal: AbortSignal | undefined;
     mockConfig.getBufferImpl = (_name, signal) => {
       receivedSignal = signal;
-      return new Promise(() => {}); // never resolves
+      return new Promise(() => {}); // 未解決
     };
 
     send({ type: MessageType.GET_DATA, payload: 'a' });
@@ -254,12 +276,11 @@ describe('lszlw worker: ABORT_DATA', () => {
     send({ type: MessageType.ABORT_DATA, payload: 'a' });
     expect(receivedSignal?.aborted).toBe(true);
 
-    // no response is posted for ABORT_DATA itself
     const abortResponses = postMessageSpy.mock.calls.filter(([msg]) => msg?.type === MessageType.ABORT_DATA);
     expect(abortResponses).toHaveLength(0);
   });
 
-  it('is a no-op when the entry is not pending', () => {
+  it('should be a no-op when the entry is not pending', () => {
     expect(() => send({ type: MessageType.ABORT_DATA, payload: 'not-there' })).not.toThrow();
   });
 });
