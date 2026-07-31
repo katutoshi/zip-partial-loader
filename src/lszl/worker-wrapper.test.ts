@@ -279,18 +279,13 @@ describe('WorkerWrapper.terminate', () => {
 });
 
 describe('WorkerWrapper.onFallback', () => {
-  // 既知の実装/型不整合: lszlw.ts 側は `{type, state, meta}` を送っているが
-  // types.ts の UpdateStateMessage は `payload` を宣言している。
-  // 実装 (worker-wrapper.ts:96-99) は payload/state のどちらでもハンドラを
-  // 発火するので、実装が実際に送る形 (state) でテストする。後続 PR で
-  // 実装側/型定義を統一する予定。
   it('should be invoked when an UPDATE_STATE message arrives', () => {
     const wrapper = new WorkerWrapper({ url: 'https://example.com/file.zip' });
     const worker = lastWorker();
     const cb = vi.fn();
     wrapper.onFallback = cb;
 
-    worker.emit({ type: MessageType.UPDATE_STATE, state: { entryNames: [], fallback: true } });
+    worker.emit({ type: MessageType.UPDATE_STATE, payload: { entryNames: [], fallback: true } });
 
     expect(cb).toHaveBeenCalledTimes(1);
   });
@@ -299,7 +294,7 @@ describe('WorkerWrapper.onFallback', () => {
     const wrapper = new WorkerWrapper({ url: 'https://example.com/file.zip' });
     const worker = lastWorker();
     expect(() => {
-      worker.emit({ type: MessageType.UPDATE_STATE, state: { entryNames: [], fallback: true } });
+      worker.emit({ type: MessageType.UPDATE_STATE, payload: { entryNames: [], fallback: true } });
     }).not.toThrow();
     expect(wrapper.getPendingCount()).toBe(0);
   });

@@ -132,10 +132,6 @@ describe('lszlw worker: INIT', () => {
   });
 
   it('should wire onUpdateState so state changes are posted as UPDATE_STATE', async () => {
-    // 既知の実装/型不整合: lszlw.ts の UPDATE_STATE 送信形は `{type, state, meta}` だが
-    // types.ts の UpdateStateMessage は `payload` を宣言している。
-    // ここでは実装が実際に送る形 (state) で受信を検証する。後続 PR で
-    // 実装/型定義を統一予定。
     let capturedOnUpdate: ((s: unknown) => void) | undefined;
     mockConfig.onConstruct = (params) => {
       capturedOnUpdate = params.onUpdateState;
@@ -155,7 +151,7 @@ describe('lszlw worker: INIT', () => {
 
     const updates = postMessageSpy.mock.calls.filter(([msg]) => msg?.type === MessageType.UPDATE_STATE);
     expect(updates).toHaveLength(1);
-    expect(updates[0][0].state).toEqual({ entryNames: [], fallback: true });
+    expect(updates[0][0].payload).toEqual({ entryNames: [], fallback: true });
     expect(updates[0][0].meta).toBe('m');
   });
 });
