@@ -258,14 +258,23 @@ describe('WorkerWrapper.terminate', () => {
     expect(worker.terminate).toHaveBeenCalledTimes(1);
   });
 
-  // 既知の実装バグ: terminate 内で `Object.keys(...).forEach(this.abort)` を
-  // 通常メソッド `abort` に渡しており this が失われて TypeError で落ちる。
-  // プロダクションコードは触らない方針のため現状挙動を固定する。
-  it('should throw TypeError when pending entries exist (known bug: unbound abort)', () => {
+  it('should abort every pending entry and then terminate the worker', () => {
     const wrapper = new WorkerWrapper({ url: 'https://example.com/file.zip' });
+    const worker = lastWorker();
     wrapper.getBuffer('a');
+    wrapper.getBuffer('b');
+    worker.postMessage.mockClear();
 
-    expect(() => wrapper.terminate()).toThrow(TypeError);
+    expect(() => wrapper.terminate()).not.toThrow();
+
+    // pending 全件に ABORT_DATA が送られる
+    const abortCalls = worker.postMessage.mock.calls.filter(([msg]) => msg?.type === MessageType.ABORT_DATA);
+    expect(abortCalls).toHaveLength(2);
+    const abortedEntries = abortCalls.map(([msg]) => msg.payload).sort();
+    expect(abortedEntries).toEqual(['a', 'b']);
+
+    // worker.terminate() が呼ばれる
+    expect(worker.terminate).toHaveBeenCalledTimes(1);
   });
 });
 

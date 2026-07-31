@@ -235,6 +235,32 @@ describe('LSZL fallback', () => {
     expect(wrappers[1].terminate).toHaveBeenCalled();
     expect(wrappers[2].terminate).toHaveBeenCalled();
   });
+
+  it('should keep setupWorkers healthy when co-workers have pending requests at fallback time', async () => {
+    // 実バグ再現経路: 旧 WorkerWrapper.terminate() は pending がある状態で
+    // TypeError を投げていた。fallback は setupWorkers チェーンで co-worker を
+    // terminate するため、pending がある状態で fallback が起きると Promise が
+    // reject し、以降 getBuffer / getEntryNames が全滅する。
+    const lszl = new LSZL({ url: 'https://example.com/file.zip', multiply: 3 });
+    await lszl.getEntryNames();
+    expect(wrappers).toHaveLength(3);
+
+    // co-worker たちに pending がある状態を再現する
+    wrappers[1].terminate.mockImplementation(() => {
+      /* pending を持ったまま呼ばれても壊れない、というのが正しい実装 */
+    });
+    wrappers[2].terminate.mockImplementation(() => {});
+
+    wrappers[0].__triggerFallback();
+    await new Promise((r) => setTimeout(r, 0));
+
+    // setupWorkers が壊れていないこと: 後続 API がそのまま解決する
+    wrappers[0].getPendingCount.mockReturnValue(0);
+    const buff = new ArrayBuffer(9);
+    wrappers[0].getBuffer.mockResolvedValue(buff);
+    await expect(lszl.getBuffer('a.txt')).resolves.toBe(buff);
+    await expect(lszl.getEntryNames()).resolves.toEqual(['a.txt', 'b.txt', 'c.txt']);
+  });
 });
 
 describe('LSZL.prefetchAll', () => {
