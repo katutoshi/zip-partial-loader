@@ -19,15 +19,22 @@ class MockWorker {
   }
 }
 
-const originalWorker = (globalThis as any).Worker;
+let originalWorker: unknown;
+let hadWorker = false;
 
 beforeEach(() => {
+  hadWorker = 'Worker' in globalThis;
+  originalWorker = (globalThis as any).Worker;
   MockWorker.instances = [];
   (globalThis as any).Worker = MockWorker;
 });
 
 afterEach(() => {
-  (globalThis as any).Worker = originalWorker;
+  if (hadWorker) {
+    (globalThis as any).Worker = originalWorker;
+  } else {
+    delete (globalThis as any).Worker;
+  }
 });
 
 function lastWorker(): MockWorker {
@@ -35,7 +42,7 @@ function lastWorker(): MockWorker {
 }
 
 describe('WorkerWrapper constructor', () => {
-  it('spawns Worker at default url and posts INIT with params payload', () => {
+  it('should spawn Worker at default url and post INIT with params payload', () => {
     const params = { url: 'https://example.com/file.zip', noUseCache: false };
     // biome-ignore lint/correctness/noUnusedVariables: 副作用のためのインスタンス化
     const wrapper = new WorkerWrapper(params);
@@ -49,7 +56,7 @@ describe('WorkerWrapper constructor', () => {
     });
   });
 
-  it('spawns Worker at custom worker url when provided', () => {
+  it('should spawn Worker at custom worker url when provided', () => {
     // biome-ignore lint/correctness/noUnusedVariables: 副作用のためのインスタンス化
     const wrapper = new WorkerWrapper({
       url: 'https://example.com/file.zip',
@@ -60,7 +67,7 @@ describe('WorkerWrapper constructor', () => {
 });
 
 describe('WorkerWrapper.getState', () => {
-  it('resolves once INIT response arrives', async () => {
+  it('should resolve once INIT response arrives', async () => {
     const wrapper = new WorkerWrapper({ url: 'https://example.com/file.zip' });
     const worker = lastWorker();
 
@@ -70,7 +77,7 @@ describe('WorkerWrapper.getState', () => {
     await expect(wrapper.getState()).resolves.toEqual(state);
   });
 
-  it('rejects when INIT response has error flag', async () => {
+  it('should reject when INIT response has error flag', async () => {
     const wrapper = new WorkerWrapper({ url: 'https://example.com/file.zip' });
     const worker = lastWorker();
 
@@ -81,7 +88,7 @@ describe('WorkerWrapper.getState', () => {
 });
 
 describe('WorkerWrapper.getBuffer', () => {
-  it('posts GET_DATA and resolves with matching GET_DATA response', async () => {
+  it('should post GET_DATA and resolve with matching GET_DATA response', async () => {
     const wrapper = new WorkerWrapper({ url: 'https://example.com/file.zip' });
     const worker = lastWorker();
     worker.postMessage.mockClear();
@@ -99,7 +106,7 @@ describe('WorkerWrapper.getBuffer', () => {
     await expect(pending).resolves.toBe(buff);
   });
 
-  it('returns the same promise instance for duplicated calls (dedupe)', () => {
+  it('should return the same promise for duplicated calls (dedupe)', () => {
     const wrapper = new WorkerWrapper({ url: 'https://example.com/file.zip' });
     const worker = lastWorker();
     worker.postMessage.mockClear();
@@ -111,13 +118,13 @@ describe('WorkerWrapper.getBuffer', () => {
     expect(worker.postMessage).toHaveBeenCalledTimes(1);
   });
 
-  it('ignores responses whose meta does not match a known entry', async () => {
+  it('should ignore responses whose meta does not match a known entry', async () => {
     const wrapper = new WorkerWrapper({ url: 'https://example.com/file.zip' });
     const worker = lastWorker();
 
     const pending = wrapper.getBuffer('entry-a');
 
-    // Emit a GET_DATA for an unknown entry: should not resolve pending
+    // 未知エントリの GET_DATA が来ても pending は resolve しない
     worker.emit({ type: MessageType.GET_DATA, payload: new ArrayBuffer(1), meta: 'entry-b' });
 
     let resolved = false;
@@ -127,13 +134,12 @@ describe('WorkerWrapper.getBuffer', () => {
     await Promise.resolve();
     expect(resolved).toBe(false);
 
-    // Now actually resolve
     const buff = new ArrayBuffer(2);
     worker.emit({ type: MessageType.GET_DATA, payload: buff, meta: 'entry-a' });
     await expect(pending).resolves.toBe(buff);
   });
 
-  it('rejects when the GET_DATA response carries an error', async () => {
+  it('should reject when the GET_DATA response carries an error', async () => {
     const wrapper = new WorkerWrapper({ url: 'https://example.com/file.zip' });
     const worker = lastWorker();
 
@@ -143,7 +149,7 @@ describe('WorkerWrapper.getBuffer', () => {
     await expect(pending).rejects.toBe('boom');
   });
 
-  it('removes resolver after resolution so a subsequent call re-posts', async () => {
+  it('should remove resolver after resolution so a subsequent call re-posts', async () => {
     const wrapper = new WorkerWrapper({ url: 'https://example.com/file.zip' });
     const worker = lastWorker();
     worker.postMessage.mockClear();
@@ -151,25 +157,42 @@ describe('WorkerWrapper.getBuffer', () => {
     const first = wrapper.getBuffer('entry-a');
     worker.emit({ type: MessageType.GET_DATA, payload: new ArrayBuffer(1), meta: 'entry-a' });
     await first;
-
-    // Allow the .then cleanup callback to run
-    await Promise.resolve();
+    await Promise.resolve(); // cleanup .then が走るのを待つ
 
     const second = wrapper.getBuffer('entry-a');
-    // 2 posts total: initial + this new call
     expect(worker.postMessage).toHaveBeenCalledTimes(2);
     worker.emit({ type: MessageType.GET_DATA, payload: new ArrayBuffer(2), meta: 'entry-a' });
+    await expect(second).resolves.toBeInstanceOf(ArrayBuffer);
+  });
+
+  it('should remove resolver after REJECTION so pending drops and re-request re-posts', async () => {
+    // M7 対策: reject 経路で `delete this.resolvers.getData[entryName]` が消えると
+    // 同名エントリは (a) getPendingCount が減らない (b) getExistsBuffer が過去の
+    // 拒否済み Promise を返し続ける、というリークになる。
+    const wrapper = new WorkerWrapper({ url: 'https://example.com/file.zip' });
+    const worker = lastWorker();
+    worker.postMessage.mockClear();
+
+    const first = wrapper.getBuffer('entry-a');
+    worker.emit({ type: MessageType.GET_DATA, error: true, payload: 'boom', meta: 'entry-a' });
+    await expect(first).rejects.toBe('boom');
+    await Promise.resolve();
+
+    expect(wrapper.getPendingCount()).toBe(0);
+    const second = wrapper.getBuffer('entry-a');
+    expect(worker.postMessage).toHaveBeenCalledTimes(2);
+    worker.emit({ type: MessageType.GET_DATA, payload: new ArrayBuffer(3), meta: 'entry-a' });
     await expect(second).resolves.toBeInstanceOf(ArrayBuffer);
   });
 });
 
 describe('WorkerWrapper.getExistsBuffer', () => {
-  it('returns undefined before any getBuffer is called', () => {
+  it('should return undefined before any getBuffer is called', () => {
     const wrapper = new WorkerWrapper({ url: 'https://example.com/file.zip' });
     expect(wrapper.getExistsBuffer('entry-a')).toBeUndefined();
   });
 
-  it('returns the pending promise once getBuffer is issued', () => {
+  it('should return the pending promise once getBuffer is issued', () => {
     const wrapper = new WorkerWrapper({ url: 'https://example.com/file.zip' });
     const pending = wrapper.getBuffer('entry-a');
     expect(wrapper.getExistsBuffer('entry-a')).toBe(pending);
@@ -177,7 +200,7 @@ describe('WorkerWrapper.getExistsBuffer', () => {
 });
 
 describe('WorkerWrapper.getPendingCount', () => {
-  it('reflects the number of unresolved getBuffer requests', async () => {
+  it('should reflect the number of unresolved getBuffer requests', async () => {
     const wrapper = new WorkerWrapper({ url: 'https://example.com/file.zip' });
     const worker = lastWorker();
 
@@ -200,7 +223,7 @@ describe('WorkerWrapper.getPendingCount', () => {
 });
 
 describe('WorkerWrapper.abort', () => {
-  it('posts ABORT_DATA when the entry is pending', () => {
+  it('should post ABORT_DATA when the entry is pending', () => {
     const wrapper = new WorkerWrapper({ url: 'https://example.com/file.zip' });
     const worker = lastWorker();
     wrapper.getBuffer('entry-a');
@@ -214,7 +237,7 @@ describe('WorkerWrapper.abort', () => {
     });
   });
 
-  it('does not post ABORT_DATA when the entry is not pending', () => {
+  it('should not post ABORT_DATA when the entry is not pending', () => {
     const wrapper = new WorkerWrapper({ url: 'https://example.com/file.zip' });
     const worker = lastWorker();
     worker.postMessage.mockClear();
@@ -226,7 +249,7 @@ describe('WorkerWrapper.abort', () => {
 });
 
 describe('WorkerWrapper.terminate', () => {
-  it('calls worker.terminate when no requests are pending', () => {
+  it('should call worker.terminate when no requests are pending', () => {
     const wrapper = new WorkerWrapper({ url: 'https://example.com/file.zip' });
     const worker = lastWorker();
 
@@ -235,11 +258,10 @@ describe('WorkerWrapper.terminate', () => {
     expect(worker.terminate).toHaveBeenCalledTimes(1);
   });
 
-  // 既知の実装バグ: terminate() 内で `Object.keys(...).forEach(this.abort)` を
-  // 通常メソッド `abort` に対して呼ぶと this が失われ TypeError で落ちる。
-  // プロダクションコードを触らない方針なので、現状挙動を固定する
-  // (壊れていることを可視化するテスト)。
-  it('throws when pending entries exist because abort is not bound (known bug)', () => {
+  // 既知の実装バグ: terminate 内で `Object.keys(...).forEach(this.abort)` を
+  // 通常メソッド `abort` に渡しており this が失われて TypeError で落ちる。
+  // プロダクションコードは触らない方針のため現状挙動を固定する。
+  it('should throw TypeError when pending entries exist (known bug: unbound abort)', () => {
     const wrapper = new WorkerWrapper({ url: 'https://example.com/file.zip' });
     wrapper.getBuffer('a');
 
@@ -248,24 +270,28 @@ describe('WorkerWrapper.terminate', () => {
 });
 
 describe('WorkerWrapper.onFallback', () => {
-  it('is invoked when UPDATE_STATE message arrives', () => {
+  // 既知の実装/型不整合: lszlw.ts 側は `{type, state, meta}` を送っているが
+  // types.ts の UpdateStateMessage は `payload` を宣言している。
+  // 実装 (worker-wrapper.ts:96-99) は payload/state のどちらでもハンドラを
+  // 発火するので、実装が実際に送る形 (state) でテストする。後続 PR で
+  // 実装側/型定義を統一する予定。
+  it('should be invoked when an UPDATE_STATE message arrives', () => {
     const wrapper = new WorkerWrapper({ url: 'https://example.com/file.zip' });
     const worker = lastWorker();
     const cb = vi.fn();
     wrapper.onFallback = cb;
 
-    worker.emit({ type: MessageType.UPDATE_STATE, payload: { entryNames: [], fallback: true } });
+    worker.emit({ type: MessageType.UPDATE_STATE, state: { entryNames: [], fallback: true } });
 
     expect(cb).toHaveBeenCalledTimes(1);
   });
 
-  it('does nothing if onFallback is not set', () => {
+  it('should not throw when onFallback is not set', () => {
     const wrapper = new WorkerWrapper({ url: 'https://example.com/file.zip' });
     const worker = lastWorker();
     expect(() => {
-      worker.emit({ type: MessageType.UPDATE_STATE, payload: { entryNames: [], fallback: true } });
+      worker.emit({ type: MessageType.UPDATE_STATE, state: { entryNames: [], fallback: true } });
     }).not.toThrow();
-    // just to satisfy the linter about unused variable
     expect(wrapper.getPendingCount()).toBe(0);
   });
 });
