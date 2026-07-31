@@ -1,4 +1,4 @@
-import { promisify, promisifyWithCursor } from "../util/idb";
+import { promisify, promisifyWithCursor } from '../util/idb';
 
 const DB_VERSION = 22;
 
@@ -22,11 +22,12 @@ function getFragmentKey(url: string, name: string) {
 }
 
 export default class FragmentStorage {
-  constructor(public params: {
-    url: string,
-    forceKeepCache?: boolean
-  }) {
-  }
+  constructor(
+    public params: {
+      url: string;
+      forceKeepCache?: boolean;
+    },
+  ) {}
   private prepare: Promise<IDBDatabase> = (async () => {
     const request = indexedDB.open('lszr', DB_VERSION);
     request.onupgradeneeded = (event) => {
@@ -34,7 +35,7 @@ export default class FragmentStorage {
 
       const names = db.objectStoreNames;
       if (names.contains(FRAGMENT_OBJECT_STORE_NAME)) {
-        db.deleteObjectStore(FRAGMENT_OBJECT_STORE_NAME)
+        db.deleteObjectStore(FRAGMENT_OBJECT_STORE_NAME);
       }
       if (names.contains(GROUP_STORE_NAME)) {
         db.deleteObjectStore(GROUP_STORE_NAME);
@@ -55,7 +56,7 @@ export default class FragmentStorage {
 
   public getFragment = async (name: string, signal?: AbortSignal): Promise<ArrayBuffer | undefined> => {
     const onabort = signal && signal.onabort;
-    const db = await this.prepare.catch(() => { });
+    const db = await this.prepare.catch(() => {});
     if (!db) {
       return undefined;
     }
@@ -87,10 +88,10 @@ export default class FragmentStorage {
         signal.onabort = onabort;
       }
     }
-  }
+  };
 
   public putFragment = async (name: string, buffer: ArrayBuffer): Promise<void> => {
-    const db = await this.prepare.catch(() => { });
+    const db = await this.prepare.catch(() => {});
     if (!db) {
       return;
     }
@@ -100,16 +101,21 @@ export default class FragmentStorage {
       const groupStore = transaction.objectStore(GROUP_STORE_NAME);
 
       const key = getFragmentKey(this.params.url, name);
-      const fragmentPromise = promisify(fragmentStore.put({
-        buffer,
-        time: Date.now(),
-      } as FragmentRecord, key));
+      const fragmentPromise = promisify(
+        fragmentStore.put(
+          {
+            buffer,
+            time: Date.now(),
+          } as FragmentRecord,
+          key,
+        ),
+      );
       const groupPromise = promisify(groupStore.put({ time: Date.now() } as GroupRecord, this.params.url));
       await Promise.all([fragmentPromise, groupPromise]);
     } catch (err) {
       console.error(err);
     }
-  }
+  };
 
   public clearExpired = async (db: IDBDatabase) => {
     const expire = Date.now() - LIVE_FRAGMENT_AGE;
@@ -154,8 +160,5 @@ export default class FragmentStorage {
       cursor.delete();
       deleteCount--;
     });
-  }
-
+  };
 }
-
-

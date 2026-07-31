@@ -5,7 +5,10 @@ export function promisify<T>(request: IDBRequest<T>): Promise<T> {
   });
 }
 
-export function promisifyWithCursor<C extends IDBCursor>(request: IDBRequest<C>, ondata: (target: C) => void | boolean): Promise<void> {
+export function promisifyWithCursor<C extends IDBCursor>(
+  request: IDBRequest<C>,
+  ondata: (target: C) => void | boolean,
+): Promise<void> {
   return new Promise((res, rej) => {
     request.onerror = () => rej(request.error);
     request.onsuccess = () => {
@@ -19,6 +22,6 @@ export function promisifyWithCursor<C extends IDBCursor>(request: IDBRequest<C>,
       } else {
         res();
       }
-    }
+    };
   });
 }

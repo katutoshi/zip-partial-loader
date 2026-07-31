@@ -1,17 +1,17 @@
 const path = require('path');
-const CopyWebpackPlugin = require("copy-webpack-plugin");
+const CopyWebpackPlugin = require('copy-webpack-plugin');
 
 module.exports = (env, argv) => {
   const entry = [];
-  entry.push(path.resolve(__dirname, "./src/lszl/lszl.ts"));
+  entry.push(path.resolve(__dirname, './src/lszl/lszl.ts'));
   return [
     require('./webpack.config.lszlw'),
     {
       mode: 'development',
       entry,
       output: {
-        path: path.resolve(__dirname, "./dist"),
-        filename: "lszl.js",
+        path: path.resolve(__dirname, './dist'),
+        filename: 'lszl.js',
         library: {
           name: 'LSZL',
           type: 'umd',
@@ -20,7 +20,7 @@ module.exports = (env, argv) => {
       },
       plugins: [
         new CopyWebpackPlugin({
-          patterns: ['./static/lszl.d.ts']
+          patterns: ['./static/lszl.d.ts'],
         }),
       ],
       module: {
@@ -31,14 +31,14 @@ module.exports = (env, argv) => {
             loader: 'esbuild-loader',
             options: {
               loader: 'ts',
-              target: 'es2020'
-            }
-          }
-        ]
+              target: 'es2020',
+            },
+          },
+        ],
       },
       resolve: {
-        extensions: [".ts", ".js"]
-      }
-    }
+        extensions: ['.ts', '.js'],
+      },
+    },
   ];
 };

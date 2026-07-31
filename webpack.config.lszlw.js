@@ -15,12 +15,12 @@ buildWasm();
 
 module.exports = {
   mode: 'development',
-  entry: [path.resolve(__dirname, "./src/lszlw/lszlw.ts")],
+  entry: [path.resolve(__dirname, './src/lszlw/lszlw.ts')],
   target: 'webworker',
   output: {
-    path: path.resolve(__dirname, "./dist"),
-    filename: "lszlw.js",
-    publicPath: "./"
+    path: path.resolve(__dirname, './dist'),
+    filename: 'lszlw.js',
+    publicPath: './',
   },
   module: {
     rules: [
@@ -30,16 +30,16 @@ module.exports = {
         loader: 'esbuild-loader',
         options: {
           loader: 'ts',
-          target: 'es2020'
-        }
+          target: 'es2020',
+        },
       },
       {
         test: /\.wasm$/,
-        type: 'asset/resource'
-      }
-    ]
+        type: 'asset/resource',
+      },
+    ],
   },
   resolve: {
-    extensions: [".ts", ".js"]
-  }
+    extensions: ['.ts', '.js'],
+  },
 };

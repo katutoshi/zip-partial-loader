@@ -1,4 +1,3 @@
-
 export type SuccessMessage<T = string, P = any, M = any> = {
   type: T;
   error?: false;
@@ -28,13 +27,16 @@ export interface WorkerState {
   fallback: boolean;
 }
 
-export type InitRequestMessage = RequestMessage<MessageType.INIT, {
-  url: string,
-  worker?: string,
-  noUseCache?: boolean,
-  forceInMemoryCache?: boolean,
-  forceKeepCache?: boolean,
-}>;
+export type InitRequestMessage = RequestMessage<
+  MessageType.INIT,
+  {
+    url: string;
+    worker?: string;
+    noUseCache?: boolean;
+    forceInMemoryCache?: boolean;
+    forceKeepCache?: boolean;
+  }
+>;
 export type InitResponseMessage = RequestMessage<MessageType.INIT, WorkerState>;
 
 export type GetDataRequestMessage = RequestMessage<MessageType.GET_DATA, string, void>;

@@ -1,4 +1,3 @@
-
 export function throwIfAbort(signal?: AbortSignal) {
   if (!signal || !signal.aborted) {
     return;
