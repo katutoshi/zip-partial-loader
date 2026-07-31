@@ -28,6 +28,7 @@
     "esbuild-loader": "^4.4.2",
     "mime": "^4.1.0",
     "msw": "^2.12.8",
+    "release-it": "21.0.1",
     "ts-loader": "^9.5.4",
     "typescript": "^5.9.3",
     "vitest": "^4.0.18",
