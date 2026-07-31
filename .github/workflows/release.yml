@@ -1,0 +1,79 @@
+name: Release
+
+on:
+  workflow_dispatch:
+
+# タグ作成と GitHub Release 作成のため contents: write が必要。それ以外は付けない。
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    name: Release (test + build + publish)
+    runs-on: ubuntu-latest
+    env:
+      WASM_PACK_VERSION: v0.13.1
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          # タグ作成・release-it の changelog 取得のため全履歴を取得する
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          # `npm publish` から NODE_AUTH_TOKEN で npmjs.org を参照させる
+          registry-url: 'https://registry.npmjs.org'
+
+      - name: Setup Rust toolchain
+        # dtolnay/rust-toolchain@stable (2026-... 時点の HEAD) を SHA pin。
+        # SHA pin では @rev からトーラチェーン名を推論できないので toolchain を明示する。
+        uses: dtolnay/rust-toolchain@4cda84d5c5c54efe2404f9d843567869ab1699d4
+        with:
+          toolchain: stable
+          targets: wasm32-unknown-unknown
+
+      - name: Install wasm-pack (pinned)
+        run: |
+          set -euo pipefail
+          tarball="wasm-pack-${WASM_PACK_VERSION}-x86_64-unknown-linux-musl.tar.gz"
+          url="https://github.com/rustwasm/wasm-pack/releases/download/${WASM_PACK_VERSION}/${tarball}"
+          tmp="$(mktemp -d)"
+          curl -sSfL -o "${tmp}/${tarball}" "${url}"
+          tar -xzf "${tmp}/${tarball}" -C "${tmp}"
+          sudo install -m 0755 "${tmp}/wasm-pack-${WASM_PACK_VERSION}-x86_64-unknown-linux-musl/wasm-pack" /usr/local/bin/wasm-pack
+          wasm-pack --version
+
+      - name: Install wasm-opt (binaryen)
+        run: sudo apt-get update && sudo apt-get install -y binaryen
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint (Biome)
+        run: npm run lint
+
+      - name: Unit tests
+        run: npm run test:run
+
+      - name: Configure git identity
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+      - name: Release (release-it)
+        env:
+          # tag push・GitHub Release 作成用 (permissions.contents: write に対応)
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # npm publish 用 (setup-node の registry-url 経由で .npmrc に流し込まれる)
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        # package.json のバージョンは事前にコミット済みという運用なので --no-increment。
+        # release-it のバージョンは供給チェーン安定化のため明示 pin。
+        run: npx --yes release-it@21.0.1 --ci --no-increment
