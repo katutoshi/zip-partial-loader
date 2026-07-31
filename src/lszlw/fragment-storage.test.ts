@@ -233,6 +233,15 @@ describe('FragmentStorage.getFragment', () => {
     expect(result).toBeUndefined();
     consoleErr.mockRestore();
   });
+
+  it('should temporarily wire signal.onabort during the transaction and restore it after', async () => {
+    // 型修正 (signal.onabort = onabort ?? null) の分岐を担保する回帰テスト。
+    // 呼び出し前後で onabort を復元するというプロトコルを守っている。
+    const storage = new FragmentStorage({ url: 'https://example.com/a.zip' });
+    const signal = { onabort: null } as unknown as AbortSignal;
+    await storage.getFragment('missing', signal);
+    expect(signal.onabort).toBeNull();
+  });
 });
 
 describe('FragmentStorage.putFragment', () => {
