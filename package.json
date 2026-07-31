@@ -11,6 +11,7 @@
     "prepack": "$npm_execpath run build",
     "test": "vitest",
     "test:run": "vitest run",
+    "test:coverage": "vitest run --coverage",
     "lint": "biome check",
     "lint:fix": "biome check --write",
     "format": "biome format --write"
@@ -22,6 +23,7 @@
   "license": "MIT",
   "devDependencies": {
     "@biomejs/biome": "^2.5.6",
+    "@vitest/coverage-v8": "^4.1.10",
     "copy-webpack-plugin": "^13.0.1",
     "esbuild-loader": "^4.4.2",
     "mime": "^4.1.0",

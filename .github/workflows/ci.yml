@@ -37,7 +37,7 @@ jobs:
         run: npx tsc --noEmit -p tsconfig.json
 
       - name: Unit tests
-        run: npm run test:run
+        run: npm run test:coverage
 
   build:
     name: Build (wasm + webpack)
