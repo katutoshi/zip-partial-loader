@@ -1,5 +1,4 @@
 import init, { LSZR } from '../../wasm/pkg/lszr';
-// @ts-expect-error - webpack asset/resource returns URL string
 import wasmUrl from '../../wasm/pkg/lszr_bg.wasm';
 import { type DataChunk, downloadAll, downloadRange } from './downloader';
 
