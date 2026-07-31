@@ -18,7 +18,7 @@ interface GroupRecord {
 }
 
 function getFragmentKey(url: string, name: string) {
-  return url + ':' + name;
+  return `${url}:${name}`;
 }
 
 export default class FragmentStorage {
@@ -30,7 +30,7 @@ export default class FragmentStorage {
   ) {}
   private prepare: Promise<IDBDatabase> = (async () => {
     const request = indexedDB.open('lszr', DB_VERSION);
-    request.onupgradeneeded = (event) => {
+    request.onupgradeneeded = (_event) => {
       const db = request.result;
 
       const names = db.objectStoreNames;
@@ -55,7 +55,7 @@ export default class FragmentStorage {
   })();
 
   public getFragment = async (name: string, signal?: AbortSignal): Promise<ArrayBuffer | undefined> => {
-    const onabort = signal && signal.onabort;
+    const onabort = signal?.onabort;
     const db = await this.prepare.catch(() => {});
     if (!db) {
       return undefined;

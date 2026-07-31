@@ -1,7 +1,7 @@
-const path = require('path');
+const path = require('node:path');
 const CopyWebpackPlugin = require('copy-webpack-plugin');
 
-module.exports = (env, argv) => {
+module.exports = (_env, _argv) => {
   const entry = [];
   entry.push(path.resolve(__dirname, './src/lszl/lszl.ts'));
   return [

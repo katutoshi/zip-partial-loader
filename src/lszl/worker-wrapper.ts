@@ -4,7 +4,6 @@ import {
   type GetDataResponseMessage,
   MessageType,
   type ResponseMessage,
-  UpdateStateMessage,
   type WorkerState,
 } from '../types';
 
@@ -93,10 +92,10 @@ export default class WorkerWrapper {
     } else if (type === MessageType.GET_DATA) {
       const { meta: entryName } = message as GetDataResponseMessage;
       const resolver = this.resolvers.getData[entryName];
-      resolver && resolver.attachMessage(message);
+      resolver?.attachMessage(message);
     } else if (type === MessageType.UPDATE_STATE) {
       // const { payload: state } = message as UpdateStateMessage;
-      this.onFallback && this.onFallback();
+      this.onFallback?.();
     }
   };
 

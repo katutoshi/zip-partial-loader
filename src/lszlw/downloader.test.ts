@@ -1,9 +1,9 @@
 import { HttpResponse, http } from 'msw';
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import { RangeNotSupportedError } from '../error';
 import { server } from '../test/setup';
 import { AbortError } from '../util/abort';
-import { DataChunk, downloadAll, downloadRange } from './downloader';
+import { downloadAll, downloadRange } from './downloader';
 
 describe('downloadRange', () => {
   const TEST_URL = 'https://example.com/test.zip';

@@ -131,8 +131,11 @@ export default class LSZRWrapper {
 
       return uzr;
     })();
-    promise.catch(() => (this.init = undefined));
-    return (this.init = promise);
+    promise.catch(() => {
+      this.init = undefined;
+    });
+    this.init = promise;
+    return promise;
   }
 
   public getState(): Promise<WorkerState> {
@@ -207,7 +210,8 @@ export default class LSZRWrapper {
         }
       });
     });
-    return (this.inMemoryCache = promise);
+    this.inMemoryCache = promise;
+    return promise;
   }
 
   private setState(state: WorkerState) {

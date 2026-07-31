@@ -118,7 +118,11 @@ export default class LSZL {
   private fallback(worker: WorkerWrapper) {
     this.setupWorkers = this.setupWorkers
       .then((workers) => workers.filter((one) => one !== worker))
-      .then((workers) => workers.forEach((one) => one.terminate()))
+      .then((workers) => {
+        workers.forEach((one) => {
+          one.terminate();
+        });
+      })
       .then(() => [worker]);
   }
 }

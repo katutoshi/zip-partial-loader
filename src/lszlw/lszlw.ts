@@ -21,7 +21,7 @@ function postPromise<T>(type: string, promise: Promise<T>, meta?: any) {
       postMessage({ type, payload, meta }, undefined);
     },
     (error) => {
-      postMessage({ type, error: true, payload: error && error.toString(), meta }, undefined);
+      postMessage({ type, error: true, payload: error?.toString(), meta }, undefined);
     },
   );
 }
@@ -33,14 +33,14 @@ function postTransferable<T>(type: string, promise: TransferablePromise<T>, meta
       postMessage({ type, payload, meta }, [transferable] as any);
     },
     (error) => {
-      postMessage({ type, error: true, payload: error && error.toString(), meta }, undefined);
+      postMessage({ type, error: true, payload: error?.toString(), meta }, undefined);
     },
   );
 }
 
 const prepare: Resolver<LSZRWrapper> = createResolver();
 
-onmessage = (ev: MessageEvent) => {
+self.onmessage = (ev: MessageEvent) => {
   const message = ev.data as RequestMessage;
   const { type, meta } = message;
 
@@ -94,7 +94,7 @@ onmessage = (ev: MessageEvent) => {
   } else if (type === MessageType.ABORT_DATA) {
     const { payload: entryName } = message as AbortDataRequestMessage;
     const exists = dataHandlers[entryName];
-    exists && exists.abort.abort();
+    exists?.abort.abort();
     // NO RESPONSE
   }
 };
