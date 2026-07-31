@@ -11,6 +11,9 @@ export default defineConfig({
     },
   },
   test: {
+    // tsc の outDir (lib/) にコンパイル済みテスト (.test.js) が出力されるため、
+    // ビルド後にテストを実行すると同じテストが二重に走る。対象を src/ に限定する。
+    include: ['src/**/*.test.ts'],
     setupFiles: ['./src/test/setup.ts'],
     coverage: {
       provider: 'v8',
