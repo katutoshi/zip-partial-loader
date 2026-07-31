@@ -7,16 +7,26 @@ on:
 permissions:
   contents: write
 
+# 別ブランチから同時に kick された場合でも直列化する。cancel-in-progress: false は
+# publish 中のジョブを別トリガで潰されると npm 側だけ公開/GitHub Release だけ無し
+# という半端状態 (過去に発生実績あり) を再発させかねないため、走り出したものは
+# 最後まで実行させる。group は ref を含めず固定名にして、ブランチ違いでも直列化する。
 concurrency:
-  group: release-${{ github.ref }}
+  group: release
   cancel-in-progress: false
 
 jobs:
   release:
     name: Release (test + build + publish)
     runs-on: ubuntu-latest
+    # 多層防御: workflow_dispatch でブランチを master 以外に指定されても job 自体を走らせない。
+    # (.release-it.js の git.requireBranch: 'master' でも同じ制約を掛けている)
+    if: github.ref == 'refs/heads/master'
     env:
       WASM_PACK_VERSION: v0.13.1
+      # webpack を production ビルドさせる。設定しないと prepack 経由の
+      # `npm run build` が development のまま publish/pack されてしまう。
+      NODE_ENV: production
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -33,9 +43,11 @@ jobs:
           registry-url: 'https://registry.npmjs.org'
 
       - name: Setup Rust toolchain
-        # dtolnay/rust-toolchain@stable (2026-... 時点の HEAD) を SHA pin。
-        # SHA pin では @rev からトーラチェーン名を推論できないので toolchain を明示する。
-        uses: dtolnay/rust-toolchain@4cda84d5c5c54efe2404f9d843567869ab1699d4
+        # dtolnay/rust-toolchain@master 上の恒久コミット (2026-07-16, "Add 1.97.1 patch release") を SHA pin。
+        # `stable` ブランチは Rust リリース毎に作り直されるため、その HEAD SHA を pin すると
+        # 将来ブランチ切り直しで参照元が消えて dangling 化しうる。master 上のコミットなら永続。
+        # SHA pin では @rev からツールチェーン名を推定できないので toolchain: stable を明示する。
+        uses: dtolnay/rust-toolchain@2c7215f132e9ebf062739d9130488b56d53c060c
         with:
           toolchain: stable
           targets: wasm32-unknown-unknown
@@ -63,6 +75,12 @@ jobs:
       - name: Unit tests
         run: npm run test:run
 
+      # ci.yml と同じ fail-fast: wasm-opt 未インストール時に未最適化バイナリが
+      # tgz に混入したり、build.sh の実行権が落ちて古い wasm/pkg が黙って再利用
+      # されるといった、実際に発生した事故経路をここで撃ち抜く。
+      - name: Build wasm (fail fast)
+        run: ./wasm/build.sh
+
       - name: Configure git identity
         run: |
           git config user.name "github-actions[bot]"
@@ -74,6 +92,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           # npm publish 用 (setup-node の registry-url 経由で .npmrc に流し込まれる)
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-        # package.json のバージョンは事前にコミット済みという運用なので --no-increment。
-        # release-it のバージョンは供給チェーン安定化のため明示 pin。
-        run: npx --yes release-it@21.0.1 --ci --no-increment
+        # release-it は devDependency で 21.0.1 exact pin 済み。npx はローカル解決するので
+        # NPM_TOKEN 環境下でも lockfile 外のツリーを取りに行かない。
+        # package.json のバージョンは事前にコミット済みという運用なので --no-increment を必須。
+        run: npx release-it --ci --no-increment
