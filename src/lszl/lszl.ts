@@ -69,7 +69,6 @@ export default class LSZL {
     const workers = await this.setupWorkers;
     let minCount = Number.POSITIVE_INFINITY;
     let freeWorker: WorkerWrapper = workers[0];
-    let maxCount = 0;
     for (let index = 0; index < workers.length; index++) {
       const worker = workers[index];
       const pendingCount = worker.getPendingCount();
@@ -77,7 +76,6 @@ export default class LSZL {
         minCount = pendingCount;
         freeWorker = worker;
       }
-      maxCount = Math.max(maxCount, pendingCount);
     }
     return freeWorker;
   }
