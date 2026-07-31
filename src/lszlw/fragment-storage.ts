@@ -78,14 +78,14 @@ export default class FragmentStorage {
 
       return result.buffer;
     } catch (err) {
-      if (err && err.name === 'AbortError') {
+      if (err instanceof Error && err.name === 'AbortError') {
         return undefined;
       }
       console.error(err);
       return undefined;
     } finally {
       if (signal) {
-        signal.onabort = onabort;
+        signal.onabort = onabort ?? null;
       }
     }
   };

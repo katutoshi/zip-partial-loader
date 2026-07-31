@@ -6,19 +6,22 @@ export function promisify<T>(request: IDBRequest<T>): Promise<T> {
 }
 
 export function promisifyWithCursor<C extends IDBCursor>(
-  request: IDBRequest<C>,
+  // IDBObjectStore#openCursor / IDBIndex#openCursor は `IDBRequest<C | null>`
+  // を返す (end 到達時に null) ため、request の型もそれに合わせる。
+  request: IDBRequest<C | null>,
   // biome-ignore lint/suspicious/noConfusingVoidType: 呼び出し側で return を書かない (=戻り値を無視する) パターンを許容したいので void を残す
   ondata: (target: C) => void | boolean,
 ): Promise<void> {
   return new Promise((res, rej) => {
     request.onerror = () => rej(request.error);
     request.onsuccess = () => {
-      if (request.result) {
-        const ret = ondata(request.result);
+      const cursor = request.result;
+      if (cursor) {
+        const ret = ondata(cursor);
         if (ret) {
           res();
         } else {
-          request.result.continue();
+          cursor.continue();
         }
       } else {
         res();
