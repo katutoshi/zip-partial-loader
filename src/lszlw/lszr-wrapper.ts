@@ -1,14 +1,14 @@
 import init, { LSZR } from '../../wasm/pkg/lszr';
-// @ts-ignore - webpack asset/resource returns URL string
 import wasmUrl from '../../wasm/pkg/lszr_bg.wasm';
-import { downloadRange, DataChunk, downloadAll } from './downloader';
+import { type DataChunk, downloadAll, downloadRange } from './downloader';
 
 // WASM初期化（一度だけ実行）
 const wasmReady = init(wasmUrl);
-import FragmentStorage from './fragment-storage';
-import { throwIfAbort } from '../util/abort';
+
 import { RangeNotSupportedError } from '../error';
-import { WorkerState } from '../types';
+import type { WorkerState } from '../types';
+import { throwIfAbort } from '../util/abort';
+import FragmentStorage from './fragment-storage';
 
 const EOCD_ENTRY_NAME = ':eocd';
 const CD_ENTRY_NAME = ':cd';
@@ -21,15 +21,16 @@ export default class LSZRWrapper {
 
   public constructor(
     private params: {
-      url: string,
-      noUseCache?: boolean,
-      forceKeepCache?: boolean,
-      forceInMemoryCache?: boolean,
+      url: string;
+      noUseCache?: boolean;
+      forceKeepCache?: boolean;
+      forceInMemoryCache?: boolean;
       onUpdateState: (state: WorkerState) => void;
-    }) {
+    },
+  ) {
     this.state = {
       entryNames: [],
-      fallback: false
+      fallback: false,
     };
     if (!params.noUseCache) {
       this.storage = new FragmentStorage({
@@ -47,8 +48,8 @@ export default class LSZRWrapper {
     const promise = (async () => {
       // WASM初期化を待つ
       await wasmReady;
-      const eocdCacheData = this.storage && await this.storage.getFragment(EOCD_ENTRY_NAME);
-      const cdCacheData = this.storage && await this.storage.getFragment(CD_ENTRY_NAME);
+      const eocdCacheData = this.storage && (await this.storage.getFragment(EOCD_ENTRY_NAME));
+      const cdCacheData = this.storage && (await this.storage.getFragment(CD_ENTRY_NAME));
       let eocdData = eocdCacheData;
       let cdData = cdCacheData;
       let lastChunk: DataChunk;
@@ -120,7 +121,7 @@ export default class LSZRWrapper {
       }
 
       const entryNames = uzr.parseCD(new Uint8Array(cdData));
-      let fallback = !!inMemoryCache;
+      const fallback = !!inMemoryCache;
 
       this.state = {
         entryNames,
@@ -129,8 +130,11 @@ export default class LSZRWrapper {
 
       return uzr;
     })();
-    promise.catch(() => this.init = undefined);
-    return this.init = promise;
+    promise.catch(() => {
+      this.init = undefined;
+    });
+    this.init = promise;
+    return promise;
   }
 
   public getState(): Promise<WorkerState> {
@@ -140,7 +144,7 @@ export default class LSZRWrapper {
   public getBuffer(name: string, signal: AbortSignal): Promise<Uint8Array> {
     const promise = this.prepare().then(async (uzr) => {
       throwIfAbort(signal);
-      const exists = this.storage && await this.storage.getFragment(name, signal);
+      const exists = this.storage && (await this.storage.getFragment(name, signal));
       if (exists) {
         throwIfAbort(signal);
         const data = uzr.getData(name, new Uint8Array(exists));
@@ -185,7 +189,7 @@ export default class LSZRWrapper {
     }
     this.setState({
       ...this.state,
-      fallback: true
+      fallback: true,
     });
     const promise = downloadAll(this.params.url);
     promise.catch((err) => {
@@ -205,7 +209,8 @@ export default class LSZRWrapper {
         }
       });
     });
-    return this.inMemoryCache = promise;
+    this.inMemoryCache = promise;
+    return promise;
   }
 
   private setState(state: WorkerState) {

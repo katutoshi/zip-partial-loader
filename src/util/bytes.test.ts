@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import { bufferToString, stringToBuffer } from './bytes';
 
 describe('bufferToString', () => {
@@ -47,7 +47,7 @@ describe('round-trip conversion', () => {
 
   it('should preserve binary data through round-trip', () => {
     const bytes = [0, 127, 255, 128, 1];
-    const str = bytes.map(b => String.fromCharCode(b)).join('');
+    const str = bytes.map((b) => String.fromCharCode(b)).join('');
     const buffer = stringToBuffer(str);
     const view = new Uint8Array(buffer);
     expect(Array.from(view)).toEqual(bytes);

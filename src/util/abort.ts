@@ -1,6 +1,5 @@
-
 export function throwIfAbort(signal?: AbortSignal) {
-  if (!signal || !signal.aborted) {
+  if (!signal?.aborted) {
     return;
   }
   throw new AbortError();
@@ -8,5 +7,4 @@ export function throwIfAbort(signal?: AbortSignal) {
 
 export class AbortError {
   public name = 'AbortError';
-  constructor() {}
 }

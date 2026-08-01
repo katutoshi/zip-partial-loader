@@ -1,5 +1,5 @@
-import { throwIfAbort } from '../util/abort';
 import { RangeNotSupportedError } from '../error';
+import { throwIfAbort } from '../util/abort';
 
 export type DataChunk = [ArrayBuffer, number];
 
@@ -13,7 +13,7 @@ export async function downloadRange(url: string, range: string, signal?: AbortSi
   }
 
   const res = await fetch(url, {
-    headers: { 'Range': range },
+    headers: { Range: range },
     mode: 'cors',
     credentials: 'omit',
     signal: controller.signal,
@@ -25,12 +25,12 @@ export async function downloadRange(url: string, range: string, signal?: AbortSi
 
   const contentRange = res.headers.get('Content-Range');
 
-  const byteRange = contentRange && contentRange.match(/bytes (\d+)/);
-  if (!byteRange || !byteRange[1]) {
+  const byteRange = contentRange?.match(/bytes (\d+)/);
+  if (!byteRange?.[1]) {
     controller.abort();
-    throw new Error('Content-Range not found.')
+    throw new Error('Content-Range not found.');
   }
-  const offset = parseInt(byteRange[1]);
+  const offset = parseInt(byteRange[1], 10);
   const buffer = await res.arrayBuffer();
   const chunk: DataChunk = [buffer, offset];
 
@@ -45,7 +45,7 @@ export async function downloadAll(url: string, signal?: AbortSignal): Promise<Ar
     signal,
   });
   if (!res.ok) {
-    throw new Error('Get request failed. status code: ' + res.status);
+    throw new Error(`Get request failed. status code: ${res.status}`);
   }
   return res.arrayBuffer();
 }

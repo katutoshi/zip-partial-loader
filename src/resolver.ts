@@ -1,4 +1,4 @@
-import { RequestMessage, ResponseMessage } from "./types";
+import type { RequestMessage, ResponseMessage } from './types';
 
 export type AnyMessage<P = any> = RequestMessage<string, P, any> | ResponseMessage<string, P, any>;
 
@@ -22,13 +22,16 @@ export function createResolver<T>(): Resolver<T> {
   }) as Resolver<T>;
   resolver.status = ResolverStatus.PENDING;
   resolver.attachPromise = (promise: Promise<T>) => {
-    promise.then((result) => {
-      resolver.status = ResolverStatus.RESOLVED;
-      resolve(result);
-    }, (error) => {
-      resolver.status = ResolverStatus.REJECTED;
-      reject(error);
-    });
+    promise.then(
+      (result) => {
+        resolver.status = ResolverStatus.RESOLVED;
+        resolve(result);
+      },
+      (error) => {
+        resolver.status = ResolverStatus.REJECTED;
+        reject(error);
+      },
+    );
   };
   resolver.attachMessage = (message: AnyMessage<T>) => {
     const { error, payload } = message;
