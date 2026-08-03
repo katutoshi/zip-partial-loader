@@ -1,35 +1,38 @@
 import init, { LSZR } from '../../wasm/pkg/lszr';
-// @ts-ignore - webpack asset/resource returns URL string
 import wasmUrl from '../../wasm/pkg/lszr_bg.wasm';
-import { downloadRange, DataChunk, downloadAll } from './downloader';
+import { type DataChunk, downloadAll, downloadRange } from './downloader';
 
 // WASM初期化（一度だけ実行）
 const wasmReady = init(wasmUrl);
-import FragmentStorage from './fragment-storage';
-import { throwIfAbort } from '../util/abort';
+
 import { RangeNotSupportedError } from '../error';
-import { WorkerState } from '../types';
+import type { WorkerState } from '../types';
+import { throwIfAbort } from '../util/abort';
+import FragmentStorage from './fragment-storage';
 
 const EOCD_ENTRY_NAME = ':eocd';
 const CD_ENTRY_NAME = ':cd';
 
 export default class LSZRWrapper {
   private state: WorkerState;
-  private init: Promise<LSZR>;
-  private inMemoryCache: Promise<ArrayBuffer>;
+  // prepare() の中で失敗時に undefined を戻す再入経路があるため、
+  // 型的にも `| undefined` (= optional) として宣言しておく。
+  private init?: Promise<LSZR>;
+  private inMemoryCache?: Promise<ArrayBuffer>;
   private storage?: FragmentStorage;
 
   public constructor(
     private params: {
-      url: string,
-      noUseCache?: boolean,
-      forceKeepCache?: boolean,
-      forceInMemoryCache?: boolean,
+      url: string;
+      noUseCache?: boolean;
+      forceKeepCache?: boolean;
+      forceInMemoryCache?: boolean;
       onUpdateState: (state: WorkerState) => void;
-    }) {
+    },
+  ) {
     this.state = {
       entryNames: [],
-      fallback: false
+      fallback: false,
     };
     if (!params.noUseCache) {
       this.storage = new FragmentStorage({
@@ -47,12 +50,12 @@ export default class LSZRWrapper {
     const promise = (async () => {
       // WASM初期化を待つ
       await wasmReady;
-      const eocdCacheData = this.storage && await this.storage.getFragment(EOCD_ENTRY_NAME);
-      const cdCacheData = this.storage && await this.storage.getFragment(CD_ENTRY_NAME);
+      const eocdCacheData = this.storage && (await this.storage.getFragment(EOCD_ENTRY_NAME));
+      const cdCacheData = this.storage && (await this.storage.getFragment(CD_ENTRY_NAME));
       let eocdData = eocdCacheData;
       let cdData = cdCacheData;
-      let lastChunk: DataChunk;
-      let inMemoryCache: ArrayBuffer;
+      let lastChunk: DataChunk | undefined;
+      let inMemoryCache: ArrayBuffer | undefined;
 
       if (!eocdData) {
         try {
@@ -81,7 +84,10 @@ export default class LSZRWrapper {
         const end = start + size;
         eocdRange.free();
 
-        eocdData = lastChunk[0].slice(start, end);
+        // 不変条件: !eocdCacheData のときは直上の `if (!eocdData)` 分岐が走り
+        // lastChunk は必ず代入済み。TS は前提を追えないので non-null assertion で示す。
+        // biome-ignore lint/style/noNonNullAssertion: 直上の条件分岐で必ず代入される不変条件
+        eocdData = lastChunk![0].slice(start, end);
         if (this.storage) {
           await this.storage.putFragment(EOCD_ENTRY_NAME, eocdData).catch(console.warn);
         }
@@ -120,7 +126,7 @@ export default class LSZRWrapper {
       }
 
       const entryNames = uzr.parseCD(new Uint8Array(cdData));
-      let fallback = !!inMemoryCache;
+      const fallback = !!inMemoryCache;
 
       this.state = {
         entryNames,
@@ -129,8 +135,11 @@ export default class LSZRWrapper {
 
       return uzr;
     })();
-    promise.catch(() => this.init = undefined);
-    return this.init = promise;
+    promise.catch(() => {
+      this.init = undefined;
+    });
+    this.init = promise;
+    return promise;
   }
 
   public getState(): Promise<WorkerState> {
@@ -140,7 +149,7 @@ export default class LSZRWrapper {
   public getBuffer(name: string, signal: AbortSignal): Promise<Uint8Array> {
     const promise = this.prepare().then(async (uzr) => {
       throwIfAbort(signal);
-      const exists = this.storage && await this.storage.getFragment(name, signal);
+      const exists = this.storage && (await this.storage.getFragment(name, signal));
       if (exists) {
         throwIfAbort(signal);
         const data = uzr.getData(name, new Uint8Array(exists));
@@ -154,7 +163,10 @@ export default class LSZRWrapper {
       let buff: ArrayBuffer;
 
       if (this.state.fallback) {
-        const inMemoryCache = await this.inMemoryCache;
+        // 不変条件: fallback=true は cacheInMemory() 経由でしか立たず、
+        // その中で this.inMemoryCache が必ずセットされる。
+        // biome-ignore lint/style/noNonNullAssertion: fallback=true と inMemoryCache セットは同時に立つ
+        const inMemoryCache = await this.inMemoryCache!;
         buff = inMemoryCache.slice(start, end + 1);
       } else {
         try {
@@ -185,7 +197,7 @@ export default class LSZRWrapper {
     }
     this.setState({
       ...this.state,
-      fallback: true
+      fallback: true,
     });
     const promise = downloadAll(this.params.url);
     promise.catch((err) => {
@@ -205,7 +217,8 @@ export default class LSZRWrapper {
         }
       });
     });
-    return this.inMemoryCache = promise;
+    this.inMemoryCache = promise;
+    return promise;
   }
 
   private setState(state: WorkerState) {

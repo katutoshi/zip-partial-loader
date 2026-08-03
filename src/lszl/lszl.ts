@@ -6,13 +6,14 @@ export default class LSZL {
   public readonly url: string;
   private setupWorkers: Promise<WorkerWrapper[]>;
   private prefetching?: Promise<void>;
-  constructor(private params: {
-    url: string,
-    worker?: string,
-    multiply?: number,
-    forceInMemoryCache?: boolean,
-    forceKeepCache?: boolean,
-  }
+  constructor(
+    private params: {
+      url: string;
+      worker?: string;
+      multiply?: number;
+      forceInMemoryCache?: boolean;
+      forceKeepCache?: boolean;
+    },
   ) {
     const url = new URL(params.url, window.location.href).href;
     this.url = url;
@@ -32,7 +33,7 @@ export default class LSZL {
       }
       firstWorker.onFallback = () => this.fallback(firstWorker);
       const workers = [firstWorker];
-      const multiply = params.multiply && Math.max(params.multiply, 1) || LANE_MULTIPLY;
+      const multiply = (params.multiply && Math.max(params.multiply, 1)) || LANE_MULTIPLY;
       for (let index = 1; index < multiply; index++) {
         const coworker = new WorkerWrapper({
           url,
@@ -57,16 +58,17 @@ export default class LSZL {
         await this.getBuffer(name);
       }
     })();
-    promise.catch(() => { this.prefetching = undefined; });
+    promise.catch(() => {
+      this.prefetching = undefined;
+    });
     this.prefetching = promise;
     return this.prefetching;
-  }
+  };
 
   private async getMostFreeWorker(): Promise<WorkerWrapper> {
     const workers = await this.setupWorkers;
     let minCount = Number.POSITIVE_INFINITY;
     let freeWorker: WorkerWrapper = workers[0];
-    let maxCount = 0;
     for (let index = 0; index < workers.length; index++) {
       const worker = workers[index];
       const pendingCount = worker.getPendingCount();
@@ -74,7 +76,6 @@ export default class LSZL {
         minCount = pendingCount;
         freeWorker = worker;
       }
-      maxCount = Math.max(maxCount, pendingCount);
     }
     return freeWorker;
   }
@@ -85,14 +86,14 @@ export default class LSZL {
       const worker = workers[index];
       worker.abort(entryName);
     }
-  }
+  };
 
   public getEntryNames = async (): Promise<string[]> => {
     this.throwIfAbort();
     const workers = await this.setupWorkers;
     const state = await workers[0].getState();
     return state.entryNames;
-  }
+  };
 
   public getBuffer = async (entryName: string): Promise<ArrayBuffer> => {
     this.throwIfAbort();
@@ -106,7 +107,7 @@ export default class LSZL {
     }
     const worker = await this.getMostFreeWorker();
     return worker.getBuffer(entryName);
-  }
+  };
 
   private throwIfAbort() {
     // NOP
@@ -115,7 +116,11 @@ export default class LSZL {
   private fallback(worker: WorkerWrapper) {
     this.setupWorkers = this.setupWorkers
       .then((workers) => workers.filter((one) => one !== worker))
-      .then((workers) => workers.forEach((one) => one.terminate()))
+      .then((workers) => {
+        workers.forEach((one) => {
+          one.terminate();
+        });
+      })
       .then(() => [worker]);
   }
 }

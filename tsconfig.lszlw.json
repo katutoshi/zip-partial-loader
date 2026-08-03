@@ -2,17 +2,14 @@
   "compilerOptions": {
     "target": "esnext",
     "module": "esnext",
-    "lib": [
-      "esnext",
-      "webworker"
-    ],
+    "lib": ["esnext", "webworker"],
     "inlineSourceMap": true,
     "moduleResolution": "node",
     "outDir": "lib",
     "declaration": true,
-    "esModuleInterop": true
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "strict": true
   },
-  "include": [
-    "src/lszlw"
-  ]
+  "include": ["src/lszlw"]
 }

@@ -1,9 +1,9 @@
-import { describe, it, expect, vi } from 'vitest';
-import { http, HttpResponse } from 'msw';
-import { server } from '../test/setup';
-import { downloadRange, downloadAll, DataChunk } from './downloader';
+import { HttpResponse, http } from 'msw';
+import { describe, expect, it } from 'vitest';
 import { RangeNotSupportedError } from '../error';
+import { server } from '../test/setup';
 import { AbortError } from '../util/abort';
+import { downloadAll, downloadRange } from './downloader';
 
 describe('downloadRange', () => {
   const TEST_URL = 'https://example.com/test.zip';
@@ -22,7 +22,7 @@ describe('downloadRange', () => {
             'Content-Range': 'bytes 100-200/1000',
           },
         });
-      })
+      }),
     );
 
     const result = await downloadRange(TEST_URL, 'bytes=100-200');
@@ -45,7 +45,7 @@ describe('downloadRange', () => {
             'Content-Range': 'bytes 934443-1000000/1000000',
           },
         });
-      })
+      }),
     );
 
     const result = await downloadRange(TEST_URL, 'bytes=-65557');
@@ -59,12 +59,10 @@ describe('downloadRange', () => {
         return new HttpResponse(new Uint8Array([1, 2, 3]), {
           status: 200,
         });
-      })
+      }),
     );
 
-    await expect(downloadRange(TEST_URL, 'bytes=0-100'))
-      .rejects
-      .toThrow(RangeNotSupportedError);
+    await expect(downloadRange(TEST_URL, 'bytes=0-100')).rejects.toThrow(RangeNotSupportedError);
   });
 
   it('should throw error when Content-Range header is missing', async () => {
@@ -74,12 +72,10 @@ describe('downloadRange', () => {
           status: 206,
           // Content-Range header is missing
         });
-      })
+      }),
     );
 
-    await expect(downloadRange(TEST_URL, 'bytes=0-100'))
-      .rejects
-      .toThrow('Content-Range not found.');
+    await expect(downloadRange(TEST_URL, 'bytes=0-100')).rejects.toThrow('Content-Range not found.');
   });
 
   it('should throw error when Content-Range format is invalid', async () => {
@@ -91,21 +87,17 @@ describe('downloadRange', () => {
             'Content-Range': 'invalid-format',
           },
         });
-      })
+      }),
     );
 
-    await expect(downloadRange(TEST_URL, 'bytes=0-100'))
-      .rejects
-      .toThrow('Content-Range not found.');
+    await expect(downloadRange(TEST_URL, 'bytes=0-100')).rejects.toThrow('Content-Range not found.');
   });
 
   it('should throw AbortError when signal is already aborted', async () => {
     const controller = new AbortController();
     controller.abort();
 
-    await expect(downloadRange(TEST_URL, 'bytes=0-100', controller.signal))
-      .rejects
-      .toThrow(AbortError);
+    await expect(downloadRange(TEST_URL, 'bytes=0-100', controller.signal)).rejects.toThrow(AbortError);
   });
 
   it('should abort request when signal is aborted during fetch', async () => {
@@ -116,19 +108,17 @@ describe('downloadRange', () => {
         // リクエスト中にabort
         controller.abort();
         // 少し遅延してレスポンスを返す
-        await new Promise(resolve => setTimeout(resolve, 100));
+        await new Promise((resolve) => setTimeout(resolve, 100));
         return new HttpResponse(new Uint8Array([1, 2, 3]), {
           status: 206,
           headers: {
             'Content-Range': 'bytes 0-100/1000',
           },
         });
-      })
+      }),
     );
 
-    await expect(downloadRange(TEST_URL, 'bytes=0-100', controller.signal))
-      .rejects
-      .toThrow();
+    await expect(downloadRange(TEST_URL, 'bytes=0-100', controller.signal)).rejects.toThrow();
   });
 });
 
@@ -143,7 +133,7 @@ describe('downloadAll', () => {
         return new HttpResponse(testData, {
           status: 200,
         });
-      })
+      }),
     );
 
     const result = await downloadAll(TEST_URL);
@@ -155,33 +145,27 @@ describe('downloadAll', () => {
     server.use(
       http.get(TEST_URL, () => {
         return new HttpResponse(null, { status: 404 });
-      })
+      }),
     );
 
-    await expect(downloadAll(TEST_URL))
-      .rejects
-      .toThrow('Get request failed. status code: 404');
+    await expect(downloadAll(TEST_URL)).rejects.toThrow('Get request failed. status code: 404');
   });
 
   it('should throw error on 500 response', async () => {
     server.use(
       http.get(TEST_URL, () => {
         return new HttpResponse(null, { status: 500 });
-      })
+      }),
     );
 
-    await expect(downloadAll(TEST_URL))
-      .rejects
-      .toThrow('Get request failed. status code: 500');
+    await expect(downloadAll(TEST_URL)).rejects.toThrow('Get request failed. status code: 500');
   });
 
   it('should throw AbortError when signal is already aborted', async () => {
     const controller = new AbortController();
     controller.abort();
 
-    await expect(downloadAll(TEST_URL, controller.signal))
-      .rejects
-      .toThrow(AbortError);
+    await expect(downloadAll(TEST_URL, controller.signal)).rejects.toThrow(AbortError);
   });
 
   it('should abort request when signal is aborted', async () => {
@@ -190,15 +174,13 @@ describe('downloadAll', () => {
     server.use(
       http.get(TEST_URL, async () => {
         controller.abort();
-        await new Promise(resolve => setTimeout(resolve, 100));
+        await new Promise((resolve) => setTimeout(resolve, 100));
         return new HttpResponse(new Uint8Array([1, 2, 3]), {
           status: 200,
         });
-      })
+      }),
     );
 
-    await expect(downloadAll(TEST_URL, controller.signal))
-      .rejects
-      .toThrow();
+    await expect(downloadAll(TEST_URL, controller.signal)).rejects.toThrow();
   });
 });

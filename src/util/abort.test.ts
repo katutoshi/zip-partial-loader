@@ -1,5 +1,5 @@
-import { describe, it, expect } from 'vitest';
-import { throwIfAbort, AbortError } from './abort';
+import { describe, expect, it } from 'vitest';
+import { AbortError, throwIfAbort } from './abort';
 
 describe('throwIfAbort', () => {
   it('should not throw when signal is undefined', () => {

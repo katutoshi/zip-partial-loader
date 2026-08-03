@@ -1,5 +1,5 @@
-const path = require('path');
-const CopyWebpackPlugin = require("copy-webpack-plugin");
+const path = require('node:path');
+const CopyWebpackPlugin = require('copy-webpack-plugin');
 
 module.exports = (env, args) => {
   const lszlConfigs = require('./webpack.config.lszl')(env, args);
@@ -9,8 +9,8 @@ module.exports = (env, args) => {
       mode: 'development',
       entry: ['./static/index.ts'],
       output: {
-        path: path.resolve(__dirname, "dist"),
-        filename: "index.js"
+        path: path.resolve(__dirname, 'dist'),
+        filename: 'index.js',
       },
       plugins: [
         new CopyWebpackPlugin({
@@ -18,11 +18,11 @@ module.exports = (env, args) => {
             {
               from: './static',
               globOptions: {
-                ignore: ['**/*.ts', '**/*.js', '**/.*']
-              }
-            }
-          ]
-        })
+                ignore: ['**/*.ts', '**/*.js', '**/.*'],
+              },
+            },
+          ],
+        }),
       ],
       module: {
         rules: [
@@ -33,23 +33,23 @@ module.exports = (env, args) => {
               loader: 'esbuild-loader',
               options: {
                 loader: 'ts',
-                target: 'es2020'
-              }
-            }
-          }
-        ]
+                target: 'es2020',
+              },
+            },
+          },
+        ],
       },
       resolve: {
-        extensions: [".ts", ".js"]
+        extensions: ['.ts', '.js'],
       },
       devServer: {
-        allowedHosts: 'all'
+        allowedHosts: 'all',
       },
       externals: [
         {
           LSZL: true,
-        }
-      ]
-    }
+        },
+      ],
+    },
   ];
-}
+};
