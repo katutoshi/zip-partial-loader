@@ -24,9 +24,11 @@ jobs:
     if: github.ref == 'refs/heads/master'
     env:
       WASM_PACK_VERSION: v0.13.1
-      # webpack を production ビルドさせる。設定しないと prepack 経由の
-      # `npm run build` が development のまま publish/pack されてしまう。
-      NODE_ENV: production
+      # NOTE: 以前はここで NODE_ENV=production を設定して prepack 経由の
+      # `npm run build` を production ビルドさせていたが、package.json の
+      # build スクリプト側で `webpack --mode=production` を直接指定する形に
+      # 変更したため (dist/lszl.js 等に development ビルド由来の eval が
+      # 残る問題の修正、Issue #17)、ここでの NODE_ENV 設定は不要になった。
     steps:
       - name: Checkout
         uses: actions/checkout@v4
