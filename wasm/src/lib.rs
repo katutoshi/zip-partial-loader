@@ -24,12 +24,7 @@ pub struct Range {
 
 #[wasm_bindgen]
 impl LSZR {
-    // wasm_bindgen 0.2.108 の proc-macro が展開後のシムに `catch` という
-    // 名前の未使用変数を残すため、`-D warnings` 下では unused_variables に
-    // 引っ掛かる。用途上 catch は削れない (JS 側で Result を throw に変換
-    // する必須スイッチ) ので、attribute で局所抑制する。
-    #[allow(unused_variables)]
-    #[wasm_bindgen(constructor, catch)]
+    #[wasm_bindgen(constructor)]
     pub fn new(data: Vec<u8>) -> Result<LSZR, JsValue> {
         let len = data.len();
         if len < 22 {
@@ -54,8 +49,7 @@ impl LSZR {
         Result::Ok(result)
     }
 
-    #[allow(unused_variables)]
-    #[wasm_bindgen(catch, js_name = parseCD)]
+    #[wasm_bindgen(js_name = parseCD)]
     pub fn parse_cd(&mut self, data: Vec<u8>) -> Result<Array, JsValue> {
         let mut reader = Cursor::new(data);
         self.entries = zip::parse_cd(
@@ -71,8 +65,7 @@ impl LSZR {
         Result::Ok(names)
     }
 
-    #[allow(unused_variables)]
-    #[wasm_bindgen(catch, js_name = getRange)]
+    #[wasm_bindgen(js_name = getRange)]
     pub fn get_range(&mut self, name: String) -> Result<Range, JsValue> {
         for entry in &self.entries {
             if name == entry.file_name {
@@ -94,8 +87,7 @@ impl LSZR {
         Err(JsValue::from(Error::new(message.as_str())))
     }
 
-    #[allow(unused_variables)]
-    #[wasm_bindgen(catch, js_name = getData)]
+    #[wasm_bindgen(js_name = getData)]
     pub fn get_data(&mut self, name: String, data: Vec<u8>) -> Result<Vec<u8>, JsValue> {
         let entry = self.find_entry(name)?;
         let reader = Cursor::new(data);
