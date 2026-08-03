@@ -1,15 +1,10 @@
-import { fileURLToPath } from 'node:url';
 import { defineConfig } from 'vitest/config';
 
 export default defineConfig({
-  // Vite は .wasm 拡張子を組み込みで処理しようとして
-  // "ESM integration proposal for Wasm is not supported" で失敗する。
-  // テスト実行時は wasm 実物を必要としないため、URL 文字列を返すだけのスタブに置換する。
-  resolve: {
-    alias: {
-      '../../wasm/pkg/lszr_bg.wasm': fileURLToPath(new URL('./src/test/wasm-stub.ts', import.meta.url)),
-    },
-  },
+  // 0.12 以降は src 側から wasm バイナリを直接 import しない
+  // (wasm-pack の `init()` に URL 解決を委譲する) ため、専用の alias は不要。
+  // lszr.js の import は各テストで `vi.mock('../../wasm/pkg/lszr.js', ...)` により
+  // モックされるので、実 wasm が無い CI でも通る。
   test: {
     // tsc の outDir (lib/) にコンパイル済みテスト (.test.js) が出力されるため、
     // ビルド後にテストを実行すると同じテストが二重に走る。対象を src/ に限定する。

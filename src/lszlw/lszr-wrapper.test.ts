@@ -24,7 +24,7 @@ const rangeConfig: {
   getDataImpl: (_name, data) => new Uint8Array(data.slice(0, 4)),
 };
 
-vi.mock('../../wasm/pkg/lszr', () => {
+vi.mock('../../wasm/pkg/lszr.js', () => {
   const cloneRange = (r: RangeMock): RangeMock => ({
     offset: r.offset,
     size: r.size,

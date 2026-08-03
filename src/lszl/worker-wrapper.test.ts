@@ -6,11 +6,13 @@ class MockWorker {
   public onmessage: ((ev: MessageEvent) => void) | null = null;
   public postMessage = vi.fn();
   public terminate = vi.fn();
-  public url: string;
+  public url: string | URL;
+  public options?: WorkerOptions;
   public static instances: MockWorker[] = [];
 
-  constructor(url: string) {
+  constructor(url: string | URL, options?: WorkerOptions) {
     this.url = url;
+    this.options = options;
     MockWorker.instances.push(this);
   }
 
@@ -42,13 +44,19 @@ function lastWorker(): MockWorker {
 }
 
 describe('WorkerWrapper constructor', () => {
-  it('should spawn Worker at default url and post INIT with params payload', () => {
+  it('should spawn a module Worker at the default new URL(...) path and post INIT with params payload', () => {
     const params = { url: 'https://example.com/file.zip', noUseCache: false };
     // biome-ignore lint/correctness/noUnusedVariables: 副作用のためのインスタンス化
     const wrapper = new WorkerWrapper(params);
 
     const worker = lastWorker();
-    expect(worker.url).toBe('lszlw.js');
+    // デフォルトでは `new Worker(new URL('../lszlw/lszlw.js', import.meta.url), ...)` を
+    // 直書きで叩く (worker-wrapper.ts createDefaultWorker のコメント参照)。
+    // URL オブジェクトそのもの (文字列ではなく) が Vite の静的解析トリガになる。
+    expect(worker.url).toBeInstanceOf(URL);
+    expect((worker.url as URL).pathname).toMatch(/lszlw\.js$/);
+    // module worker として起動されていること。ESM 形式の Worker JS を配布するため必須。
+    expect(worker.options).toEqual({ type: 'module' });
     expect(worker.postMessage).toHaveBeenCalledTimes(1);
     expect(worker.postMessage).toHaveBeenCalledWith({
       type: MessageType.INIT,
@@ -63,6 +71,18 @@ describe('WorkerWrapper constructor', () => {
       worker: 'https://cdn.example.com/custom-worker.js',
     });
     expect(lastWorker().url).toBe('https://cdn.example.com/custom-worker.js');
+    // カスタムパスでも module worker として扱う (0.12.x での挙動変更)
+    expect(lastWorker().options).toEqual({ type: 'module' });
+  });
+
+  it('should accept a URL instance for the worker parameter', () => {
+    const customUrl = new URL('https://cdn.example.com/custom-worker.js');
+    // biome-ignore lint/correctness/noUnusedVariables: 副作用のためのインスタンス化
+    const wrapper = new WorkerWrapper({
+      url: 'https://example.com/file.zip',
+      worker: customUrl,
+    });
+    expect(lastWorker().url).toBe(customUrl);
   });
 });
 

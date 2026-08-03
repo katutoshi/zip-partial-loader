@@ -1,0 +1,4 @@
+# wasm/.gitignore は pkg/ をまるごと除外しているが、npm 公開時は
+# wasm/pkg/lszr.js / lszr_bg.wasm をタルボールに同梱する必要がある。
+# 空の .npmignore を置くことで、この階層に限り .gitignore の除外を無効化する。
+# 実際にどのファイルを含めるかは package.json の "files" 許可リストで制御する。

@@ -15,7 +15,7 @@ concurrency:
 
 jobs:
   check:
-    name: Lint / Type check / Test
+    name: Lint / Test
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -40,14 +40,19 @@ jobs:
       - name: Lint (Biome)
         run: pnpm run lint
 
-      - name: Type check (tsc --noEmit)
-        run: pnpm exec tsc --noEmit -p tsconfig.json
-
+      # `tsc --noEmit` はこの check ジョブでは走らせない。
+      # 統合後の tsconfig.json は src/lszlw/lszr-wrapper.ts 経由で wasm/pkg/lszr.js
+      # の d.ts を参照するため、wasm-pack ビルドが済んでいない環境では
+      # `Cannot find module '../../wasm/pkg/lszr.js'` で必ず落ちる。
+      # 型検査は build ジョブ (wasm ビルド直後) に単一の真実として置き、
+      # ここで stub d.ts を手当てして "黙って古い産物を再利用する" 事故経路を
+      # 作らない。fast-feedback は失うが、unit tests が同じコードパスを叩くので
+      # 致命的な回帰は Unit tests ステップで検出可能。
       - name: Unit tests
         run: pnpm run test:coverage
 
   build:
-    name: Build (wasm + webpack)
+    name: Build (wasm + tsc)
     runs-on: ubuntu-latest
     env:
       WASM_PACK_VERSION: v0.13.1
@@ -130,13 +135,14 @@ jobs:
       - name: Build wasm (fail fast)
         run: ./wasm/build.sh
 
-      # tsconfig.lszlw.json は wasm/pkg の型定義を前提とするため、
-      # wasm ビルドが済んでいるこの build ジョブでしか実行できない
+      # tsconfig.json は wasm/pkg 側の d.ts を参照するため、wasm ビルドが
+      # 済んでいるこの build ジョブでのみ全体の tsc --noEmit を通せる
       # (check ジョブには wasm/pkg が無い)。
-      - name: Type check (tsc --noEmit, lszlw)
-        run: pnpm exec tsc --noEmit -p tsconfig.lszlw.json
+      - name: Type check (tsc --noEmit, full)
+        run: pnpm exec tsc --noEmit
 
-      - name: Build (webpack, production)
-        env:
-          NODE_ENV: production
+      # 0.12.x で webpack バンドルを廃止し、tsc 出力 + wasm-pack 生成物を
+      # そのまま同梱する ESM 配布に切り替えたためこのステップは `pnpm build`
+      # 一発で完結する (旧: `NODE_ENV=production` で webpack production 固定)。
+      - name: Build (wasm + tsc)
         run: pnpm run build

@@ -1,5 +1,8 @@
 export function bufferToString(buff: ArrayBuffer): string {
-  return [].reduce.call(new Uint8Array(buff), (p: string, c: number) => p + String.fromCharCode(c), '');
+  // Array.prototype.reduce.call を空配列越しに叩く旧実装だと TS 5 の
+  // never[].reduce 型推論に噛み合わず noEmit で落ちる。Uint8Array.reduce に
+  // 直接繋いで初期値経由で string 型を確定させる。
+  return new Uint8Array(buff).reduce<string>((p, c) => p + String.fromCharCode(c), '');
 }
 
 export function stringToBuffer(str: string): ArrayBuffer {

@@ -2,12 +2,31 @@
   "name": "zip-partial-loader",
   "version": "0.11.1",
   "description": "A library for partial ZIP file loading using Range Requests",
-  "main": "dist/lszl.js",
-  "types": "dist/lszl.d.ts",
+  "type": "module",
+  "main": "./dist/lszl/lszl.js",
+  "module": "./dist/lszl/lszl.js",
+  "types": "./dist/lszl/lszl.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/lszl/lszl.d.ts",
+      "import": "./dist/lszl/lszl.js"
+    },
+    "./worker": {
+      "types": "./dist/lszlw/lszlw.d.ts",
+      "import": "./dist/lszlw/lszlw.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "sideEffects": [
+    "./dist/lszlw/*.js",
+    "./wasm/pkg/*.js",
+    "./wasm/pkg/*.wasm"
+  ],
   "scripts": {
-    "dev": "webpack serve --open",
     "clean": "rm -rf dist lib && cd wasm && rm -rf pkg && cargo clean",
-    "build": "tsc && webpack --config webpack.config.lszl.js --mode=production",
+    "build:wasm": "./wasm/build.sh",
+    "build:ts": "rm -rf dist && tsc",
+    "build": "pnpm run build:wasm && pnpm run build:ts",
     "prepack": "$npm_execpath run build",
     "test": "vitest",
     "test:run": "vitest run",
@@ -25,26 +44,20 @@
   "devDependencies": {
     "@biomejs/biome": "^2.5.6",
     "@vitest/coverage-v8": "4.0.18",
-    "copy-webpack-plugin": "^13.0.1",
-    "esbuild-loader": "^4.4.2",
-    "mime": "^4.1.0",
     "msw": "^2.12.8",
     "release-it": "21.0.1",
-    "ts-loader": "^9.5.4",
     "typescript": "^5.9.3",
-    "vitest": "^4.0.18",
-    "webpack": "^5.104.1",
-    "webpack-cli": "^6.0.1",
-    "webpack-dev-server": "^5.2.3"
+    "vitest": "^4.0.18"
   },
   "files": [
     "package.json",
     "README.md",
     "CHANGELOG.md",
-    "dist/lszl.d.ts",
-    "dist/lszl.js",
-    "dist/lszlw.js",
-    "dist/*.wasm"
+    "dist/",
+    "wasm/pkg/lszr.js",
+    "wasm/pkg/lszr.d.ts",
+    "wasm/pkg/lszr_bg.wasm",
+    "wasm/pkg/lszr_bg.wasm.d.ts"
   ],
   "pnpm": {
     "ignoredBuiltDependencies": [

@@ -9,7 +9,9 @@ export default class LSZL {
   constructor(
     private params: {
       url: string;
-      worker?: string;
+      // Worker JS のパス上書き。通常は指定不要 (bundler が自動配置)。
+      // 詳細は worker-wrapper.ts の DEFAULT_WORKER_URL のコメント参照。
+      worker?: string | URL;
       multiply?: number;
       forceInMemoryCache?: boolean;
       forceKeepCache?: boolean;
