@@ -21,23 +21,30 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      # setup-node の cache: pnpm を有効にするため setup-node より前に pnpm を入れる。
+      # version は指定せず、package.json の packageManager フィールド (sha 付き pnpm@x.y.z)
+      # から自動解決させる。lockfile と実行系のバージョンをここで一致させておかないと
+      # `pnpm install --frozen-lockfile` が別バージョンでの再計算を要求して失敗する。
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: 22
-          cache: npm
+          cache: pnpm
 
       - name: Install dependencies
-        run: npm ci
+        run: pnpm install --frozen-lockfile
 
       - name: Lint (Biome)
-        run: npm run lint
+        run: pnpm run lint
 
       - name: Type check (tsc --noEmit)
-        run: npx tsc --noEmit -p tsconfig.json
+        run: pnpm exec tsc --noEmit -p tsconfig.json
 
       - name: Unit tests
-        run: npm run test:coverage
+        run: pnpm run test:coverage
 
   build:
     name: Build (wasm + webpack)
@@ -48,11 +55,14 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: 22
-          cache: npm
+          cache: pnpm
 
       - name: Setup Rust toolchain
         uses: dtolnay/rust-toolchain@stable
@@ -79,7 +89,7 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y binaryen
 
       - name: Install dependencies
-        run: npm ci
+        run: pnpm install --frozen-lockfile
 
       - name: Cargo test (native)
         working-directory: wasm
@@ -92,9 +102,9 @@ jobs:
       # wasm ビルドが済んでいるこの build ジョブでしか実行できない
       # (check ジョブには wasm/pkg が無い)。
       - name: Type check (tsc --noEmit, lszlw)
-        run: npx tsc --noEmit -p tsconfig.lszlw.json
+        run: pnpm exec tsc --noEmit -p tsconfig.lszlw.json
 
       - name: Build (webpack, production)
         env:
           NODE_ENV: production
-        run: npm run build
+        run: pnpm run build
