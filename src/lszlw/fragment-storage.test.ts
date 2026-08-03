@@ -234,13 +234,68 @@ describe('FragmentStorage.getFragment', () => {
     consoleErr.mockRestore();
   });
 
-  it('should temporarily wire signal.onabort during the transaction and restore it after', async () => {
-    // 型修正 (signal.onabort = onabort ?? null) の分岐を担保する回帰テスト。
-    // 呼び出し前後で onabort を復元するというプロトコルを守っている。
+  it('should call IDBTransaction.abort() with the transaction as `this` when signal aborts', async () => {
+    // fragment-storage.ts:66 の未束縛メソッド代入 (`signal.onabort = transaction.abort`)
+    // の退行検出。発火時に this=AbortSignal で呼ばれると IDBTransaction 側で
+    // Illegal invocation になるため、実装は `() => transaction.abort()` の
+    // 形で this を保持していないといけない。
     const storage = new FragmentStorage({ url: 'https://example.com/a.zip' });
-    const signal = { onabort: null } as unknown as AbortSignal;
+    // prepare を通して sharedDatabases に DB を作らせる
+    await storage.putFragment('entry-1', new Uint8Array([1, 2, 3]).buffer);
+    // biome-ignore lint/style/noNonNullAssertion: 直前の putFragment で必ず生成される
+    const db = sharedDatabases.get('lszr')!;
+
+    // transaction.abort を「this が tx でなければ throw する通常関数」に差し替える。
+    // vi.fn() だと this 非依存で退行を検出できないため使わない。
+    const originalTx = db.transaction.bind(db);
+    const abortReceivers: unknown[] = [];
+    (db as unknown as { transaction: unknown }).transaction = (names: string[], mode: string) => {
+      const tx = originalTx(names, mode);
+      (tx as unknown as { abort: unknown }).abort = function (this: unknown) {
+        if (this !== tx) {
+          throw new TypeError('Illegal invocation');
+        }
+        abortReceivers.push(this);
+      };
+      return tx;
+    };
+
+    // signal.onabort への代入を全部拾って、後から実際に発火できるようにする。
+    // getFragment 完了時に null で復元されるので、途中で仕込まれた「関数」だけ抜く。
+    const assignments: unknown[] = [];
+    const signal = {
+      get onabort() {
+        return assignments.length > 0 ? assignments[assignments.length - 1] : null;
+      },
+      set onabort(v: unknown) {
+        assignments.push(v);
+      },
+    } as unknown as AbortSignal;
+
+    await storage.getFragment('entry-1', signal);
+
+    // 途中で仕込まれた handler (関数) を this=signal (ブラウザ実挙動) で発火。
+    // 未束縛代入だと abort 内の `this !== tx` により Illegal invocation が飛ぶ。
+    const handler = assignments.find((v): v is (this: AbortSignal, ev: Event) => unknown => typeof v === 'function');
+    expect(handler).toBeDefined();
+    // biome-ignore lint/style/noNonNullAssertion: 直上の toBeDefined で保証
+    expect(() => handler!.call(signal as AbortSignal, {} as Event)).not.toThrow();
+    // this=tx (= MockTransaction インスタンス) で走った証跡が入る
+    expect(abortReceivers).toHaveLength(1);
+    expect(abortReceivers[0]).not.toBe(signal);
+  });
+
+  it('should normalize signal.onabort to null (not undefined) after restore', async () => {
+    // fragment-storage.ts:88 `signal.onabort = onabort ?? null` の分岐回帰テスト。
+    // 呼び出し前の onabort が未定義 (プロパティ自体なし) でも、getFragment 完了後は
+    // AbortSignal 側の型に合わせて厳密に `null` へ正規化されている必要がある。
+    // `?? null` を落として `= onabort` に戻すと undefined に汚染される。
+    const storage = new FragmentStorage({ url: 'https://example.com/a.zip' });
+    const signal = {} as AbortSignal; // onabort プロパティ自体を持たない = undefined
     await storage.getFragment('missing', signal);
     expect(signal.onabort).toBeNull();
+    // undefined ではないことも明示的に検証 (typeof で分岐退行を検出しやすくする)
+    expect(typeof signal.onabort).toBe('object');
   });
 });
 
