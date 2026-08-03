@@ -1,9 +1,15 @@
-import init, { LSZR } from '../../wasm/pkg/lszr';
-import wasmUrl from '../../wasm/pkg/lszr_bg.wasm';
+import init, { LSZR } from '../../wasm/pkg/lszr.js';
 import { type DataChunk, downloadAll, downloadRange } from './downloader';
 
-// WASM初期化（一度だけ実行）
-const wasmReady = init(wasmUrl);
+// WASM 初期化 (一度だけ実行)。
+// wasm-pack `--target web` 出力の `init()` は引数を省略すると
+// `new URL('lszr_bg.wasm', import.meta.url)` を自動で解決する。この import.meta.url は
+// `wasm/pkg/lszr.js` 自身のロケーションになるため、消費側の bundler (Vite / webpack 5)
+// が lszr.js を静的解析した時点で `lszr_bg.wasm` を同ディレクトリに再配置してくれる。
+// 以前は webpack の asset/resource 経由で URL 文字列を受け取っていたが、library 側で
+// ハッシュ URL を焼き込むと消費側が再配置できず、`dist/*.wasm` を手コピーする "おまじない"
+// が必要だった。この経路を丸ごと廃止する。
+const wasmReady = init();
 
 import { RangeNotSupportedError } from '../error';
 import type { WorkerState } from '../types';
