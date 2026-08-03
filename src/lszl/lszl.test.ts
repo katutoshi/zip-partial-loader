@@ -236,31 +236,11 @@ describe('LSZL fallback', () => {
     expect(wrappers[2].terminate).toHaveBeenCalled();
   });
 
-  it('should keep setupWorkers healthy when co-workers have pending requests at fallback time', async () => {
-    // 実バグ再現経路: 旧 WorkerWrapper.terminate() は pending がある状態で
-    // TypeError を投げていた。fallback は setupWorkers チェーンで co-worker を
-    // terminate するため、pending がある状態で fallback が起きると Promise が
-    // reject し、以降 getBuffer / getEntryNames が全滅する。
-    const lszl = new LSZL({ url: 'https://example.com/file.zip', multiply: 3 });
-    await lszl.getEntryNames();
-    expect(wrappers).toHaveLength(3);
-
-    // co-worker たちに pending がある状態を再現する
-    wrappers[1].terminate.mockImplementation(() => {
-      /* pending を持ったまま呼ばれても壊れない、というのが正しい実装 */
-    });
-    wrappers[2].terminate.mockImplementation(() => {});
-
-    wrappers[0].__triggerFallback();
-    await new Promise((r) => setTimeout(r, 0));
-
-    // setupWorkers が壊れていないこと: 後続 API がそのまま解決する
-    wrappers[0].getPendingCount.mockReturnValue(0);
-    const buff = new ArrayBuffer(9);
-    wrappers[0].getBuffer.mockResolvedValue(buff);
-    await expect(lszl.getBuffer('a.txt')).resolves.toBe(buff);
-    await expect(lszl.getEntryNames()).resolves.toEqual(['a.txt', 'b.txt', 'c.txt']);
-  });
+  // pending を抱えたままの terminate 経路は WorkerWrapper 単体 (worker-wrapper.test.ts の
+  // `should abort every pending entry and then terminate the worker`) で担保する。
+  // LSZL 層で同じことを検証しようとすると WorkerWrapper 全体を差し替えたモックで
+  // terminate を no-op にする以外に手が無く、`this` 束縛の退行を捕まえられない
+  // 同語反復のテストになってしまうため、ここには置かない。
 });
 
 describe('LSZL.prefetchAll', () => {
