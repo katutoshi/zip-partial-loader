@@ -258,7 +258,7 @@ describe('WorkerWrapper.terminate', () => {
     expect(worker.terminate).toHaveBeenCalledTimes(1);
   });
 
-  it('should abort every pending entry and then terminate the worker', () => {
+  it('should abort every pending entry and then terminate the worker (order matters)', () => {
     const wrapper = new WorkerWrapper({ url: 'https://example.com/file.zip' });
     const worker = lastWorker();
     wrapper.getBuffer('a');
@@ -275,6 +275,13 @@ describe('WorkerWrapper.terminate', () => {
 
     // worker.terminate() が呼ばれる
     expect(worker.terminate).toHaveBeenCalledTimes(1);
+
+    // ABORT_DATA → worker.terminate() の順で呼ばれていること。
+    // terminate 先行にすると abort が worker 停止後に投げられて意味を成さない。
+    // vi.fn の invocationCallOrder は同一テスト内でグローバルに昇順の連番。
+    const postMessageOrders = worker.postMessage.mock.invocationCallOrder;
+    const terminateOrder = worker.terminate.mock.invocationCallOrder[0];
+    expect(terminateOrder).toBeGreaterThan(Math.max(...postMessageOrders));
   });
 });
 
