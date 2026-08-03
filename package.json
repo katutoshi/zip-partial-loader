@@ -44,5 +44,11 @@
     "dist/lszl.d.ts",
     "dist/lszl.js",
     "dist/lszlw.js"
-  ]
+  ],
+  "pnpm": {
+    "ignoredBuiltDependencies": [
+      "esbuild",
+      "msw"
+    ]
+  }
 }
