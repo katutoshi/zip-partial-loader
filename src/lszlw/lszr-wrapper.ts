@@ -204,19 +204,27 @@ export default class LSZRWrapper {
       console.warn(err);
       this.inMemoryCache = undefined;
     });
-    promise.then(async (inMemoryCache) => {
-      const uzr = await this.prepare();
-      this.state.entryNames.forEach((name) => {
-        const range = uzr.getRange(name);
-        const start = range.offset;
-        const end = start + range.size;
-        range.free();
-        const buff = inMemoryCache.slice(start, end + 1);
-        if (this.storage) {
-          this.storage.putFragment(name, buff).catch(console.warn);
-        }
-      });
-    });
+    promise
+      .then(async (inMemoryCache) => {
+        const uzr = await this.prepare();
+        this.state.entryNames.forEach((name) => {
+          const range = uzr.getRange(name);
+          const start = range.offset;
+          const end = start + range.size;
+          range.free();
+          const buff = inMemoryCache.slice(start, end + 1);
+          if (this.storage) {
+            this.storage.putFragment(name, buff).catch(console.warn);
+          }
+        });
+      })
+      // promise が reject した場合、機能面の後始末 (this.inMemoryCache = undefined)
+      // は直上の promise.catch が担う。ここでの catch は、その catch ハンドラを
+      // 経由してもなお .then チェーンに残る「未 catch な rejection」を握りつぶす
+      // ための空 catch。無いと Node ≥ 15 では unhandled rejection でプロセスが
+      // 落ちる (テストランナーでも false positive を招く)。err の再ハンドリングは
+      // 不要 (上の .catch で console.warn 済み) なので何もしない。
+      .catch(() => {});
     this.inMemoryCache = promise;
     return promise;
   }

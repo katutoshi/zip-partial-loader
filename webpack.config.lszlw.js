@@ -1,12 +1,19 @@
 const path = require('node:path');
 const { execSync } = require('node:child_process');
 
-// WASMビルドをWebpack起動前に実行
+// WASM ビルドを Webpack 起動前に実行する。
+// 以前は失敗を try/catch で握りつぶしていたが、build.sh 冒頭で `rm -rf pkg` するため
+// 失敗すると後段の webpack が "Module not found: '../../wasm/pkg/lszr'" という
+// 無関係なエラーで落ち、誤診を招いていた。ここで即座に throw して、失敗の根本原因
+// (wasm-pack / wasm-opt / cargo) が最上位のログに現れる形にする。
 const buildWasm = () => {
   try {
     execSync(path.resolve(__dirname, './wasm/build.sh'), { stdio: 'inherit' });
   } catch (error) {
-    console.warn('WASM build failed or skipped:', error.message);
+    throw new Error(
+      'WASM ビルドに失敗しました。上に出力されている wasm/build.sh のログ (wasm-pack / wasm-opt / cargo) を確認してください。' +
+        ` 元エラー: ${error.message}`,
+    );
   }
 };
 

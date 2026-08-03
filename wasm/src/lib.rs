@@ -3,9 +3,9 @@ mod utils;
 mod zip;
 
 use js_sys::{Array, Error};
-use wasm_bindgen::prelude::*;
-use std::io::Cursor;
 use std::cmp;
+use std::io::Cursor;
+use wasm_bindgen::prelude::*;
 
 #[wasm_bindgen]
 pub struct LSZR {
@@ -24,7 +24,7 @@ pub struct Range {
 
 #[wasm_bindgen]
 impl LSZR {
-    #[wasm_bindgen(constructor, catch)]
+    #[wasm_bindgen(constructor)]
     pub fn new(data: Vec<u8>) -> Result<LSZR, JsValue> {
         let len = data.len();
         if len < 22 {
@@ -40,16 +40,16 @@ impl LSZR {
         if eocd.number_of_this_disk == 0xFFFF {
             return Err(JsValue::from(Error::new("ZIP64 is not supported.")));
         }
-        
+
         let result = Self {
-            eocd: eocd,
-            entries: vec![]
+            eocd,
+            entries: vec![],
         };
 
         Result::Ok(result)
     }
 
-    #[wasm_bindgen(catch, js_name = parseCD)]
+    #[wasm_bindgen(js_name = parseCD)]
     pub fn parse_cd(&mut self, data: Vec<u8>) -> Result<Array, JsValue> {
         let mut reader = Cursor::new(data);
         self.entries = zip::parse_cd(
@@ -65,13 +65,14 @@ impl LSZR {
         Result::Ok(names)
     }
 
-    #[wasm_bindgen(catch, js_name = getRange)]
+    #[wasm_bindgen(js_name = getRange)]
     pub fn get_range(&mut self, name: String) -> Result<Range, JsValue> {
         for entry in &self.entries {
             if name == entry.file_name {
                 let mut end = self.eocd.cd_offset;
                 for next in &self.entries {
-                    if next.relative_offset_of_local_header <= entry.relative_offset_of_local_header {
+                    if next.relative_offset_of_local_header <= entry.relative_offset_of_local_header
+                    {
                         continue;
                     }
                     end = cmp::min(end, next.relative_offset_of_local_header);
@@ -86,7 +87,7 @@ impl LSZR {
         Err(JsValue::from(Error::new(message.as_str())))
     }
 
-    #[wasm_bindgen(catch, js_name = getData)]
+    #[wasm_bindgen(js_name = getData)]
     pub fn get_data(&mut self, name: String, data: Vec<u8>) -> Result<Vec<u8>, JsValue> {
         let entry = self.find_entry(name)?;
         let reader = Cursor::new(data);
@@ -147,7 +148,7 @@ impl From<zip::ParseCDError> for JsValue {
             match err {
                 zip::ParseCDError::IOError(err) => format!("ParseCDError: {}", err),
                 zip::ParseCDError::FileNameConversionError => {
-                    format!("ParseCDError: FileNameConversionError")
+                    "ParseCDError: FileNameConversionError".to_string()
                 }
                 zip::ParseCDError::InvalidSignature => "ParseCDError: InvalidSignature".to_string(),
             }
@@ -161,10 +162,16 @@ impl From<zip::LoadFileError> for JsValue {
         JsValue::from(Error::new(
             match err {
                 zip::LoadFileError::IOError(err) => format!("LoadFileError: {}", err),
-                zip::LoadFileError::InvalidSignature => "LoadFileError: InvalidSignature".to_string(),
+                zip::LoadFileError::InvalidSignature => {
+                    "LoadFileError: InvalidSignature".to_string()
+                }
                 zip::LoadFileError::UnmatchHeader => "LoadFileError: UnmatchHeader".to_string(),
-                zip::LoadFileError::UnsupportedCompressionMethod(m) => format!("LoadFileError: UnsupportedCompressionMethod: {}", m),
-                zip::LoadFileError::FileNameConversionError => "LoadFileError: FileNameConversionError".to_string(),
+                zip::LoadFileError::UnsupportedCompressionMethod(m) => {
+                    format!("LoadFileError: UnsupportedCompressionMethod: {}", m)
+                }
+                zip::LoadFileError::FileNameConversionError => {
+                    "LoadFileError: FileNameConversionError".to_string()
+                }
             }
             .as_str(),
         ))

@@ -64,15 +64,47 @@ jobs:
           node-version: 22
           cache: pnpm
 
-      - name: Setup Rust toolchain
-        uses: dtolnay/rust-toolchain@stable
-        with:
-          targets: wasm32-unknown-unknown
+      # rust toolchain は wasm/rust-toolchain.toml を単一の真実にする。
+      # ubuntu-latest ランナーには rustup が pre-installed されているので、
+      # 追加の action は使わず `rustup show` に任せる (未インストールの
+      # toolchain は rustup がここで自動 fetch する)。
+      # release.yml が secrets を扱う都合で「サードパーティ action は
+      # 極力減らす」方針との整合も取れる。
+      # 前提: `rustup toolchain install` を引数無しで叩けるのは rustup >= 1.28。
+      # 2026-08 時点で ubuntu-24.04 の rustup は 1.29 系なので現状問題ないが、
+      # 将来ランナーがダウングレードしたら明示引数版に切り替える。
+      - name: Install Rust toolchain (rust-toolchain.toml)
+        working-directory: wasm
+        run: |
+          set -euo pipefail
+          rustup show active-toolchain || rustup toolchain install
+          rustc --version
+          cargo --version
+          cargo fmt --version
+          cargo clippy --version
 
       - name: Cache Rust build
         uses: Swatinem/rust-cache@v2
         with:
           workspaces: wasm
+
+      # 品質ゲート: 既存指摘は事前に潰し済み。fmt/clippy を CI で守り、
+      # 以降新規に混入する差分をブロックする。
+      - name: Rustfmt check
+        working-directory: wasm
+        run: cargo fmt --all --check
+
+      - name: Clippy (host, all targets, deny warnings)
+        working-directory: wasm
+        run: cargo clippy --all-targets -- -D warnings
+
+      # wasm32 ターゲットの clippy も回す。tests/web.rs は
+      # `#![cfg(target_arch = "wasm32")]` で host からは丸ごと除外されるため、
+      # host clippy だけだと wasm32 でのみ発生する違反 (例: 定数 assert_eq!
+      # による clippy::eq_op) を検知できない死角がある。
+      - name: Clippy (wasm32, all targets, deny warnings)
+        working-directory: wasm
+        run: cargo clippy --all-targets --target wasm32-unknown-unknown -- -D warnings
 
       - name: Install wasm-pack (pinned)
         run: |

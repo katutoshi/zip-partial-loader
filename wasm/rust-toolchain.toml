@@ -1,0 +1,17 @@
+# rust-toolchain.toml
+#
+# 公開 wasm バイナリの再現性を rustc バージョンに依存させないため、
+# ローカル / CI / release のいずれでも同じ toolchain を強制する。
+# rustup が自動で解決するため、ワークフロー側でも `rustup show` を叩けば
+# ここで宣言したものが入る。
+#
+# 更新するときは:
+#   1. 手元で `rustup update stable` して新しい stable の rustc --version を確認
+#   2. `channel` をその値に上げ、ローカルで `cargo test` / `cargo clippy` /
+#      `cargo fmt --all --check` を通す
+#   3. CI (ci.yml の build ジョブ) が緑になることを確認して merge
+[toolchain]
+channel = "1.97.1"
+targets = ["wasm32-unknown-unknown"]
+components = ["clippy", "rustfmt"]
+profile = "minimal"

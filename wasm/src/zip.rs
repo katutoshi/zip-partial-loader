@@ -1,12 +1,14 @@
 use encoding_rs::SHIFT_JIS;
-use libflate;
 use podio::{LittleEndian, ReadPodExt};
 use std::io;
 use std::io::prelude::*;
 use std::string::FromUtf8Error;
 
+// EOCD (End Of Central Directory) は ZIP 仕様書の用語なので、そのまま大文字保持する。
+// 3 種のエラー enum (ParseEOCDError / ParseCDError / LoadFileError) も同様。
 #[derive(Debug)]
 #[allow(dead_code)]
+#[allow(clippy::upper_case_acronyms)]
 pub struct EOCD {
     pub signature: u32,
     pub number_of_this_disk: u16,
@@ -116,16 +118,16 @@ pub fn parse_eocd(cursor: &mut io::Cursor<Vec<u8>>) -> Result<EOCD, ParseEOCDErr
     let eocd_size = 4 + 2 + 2 + 2 + 2 + 4 + 4 + 2 + comment_length as u32;
 
     let eocd = EOCD {
-        signature: signature,
-        number_of_this_disk: number_of_this_disk,
-        number_of_disk_start_eocd: number_of_disk_start_eocd,
-        total_number_of_entries_on_disk: total_number_of_entries_on_disk,
-        total_number_of_entries_in_cd: total_number_of_entries_in_cd,
-        cd_size: cd_size,
-        cd_offset: cd_offset,
-        comment: comment,
-        eocd_offset: eocd_offset,
-        eocd_size: eocd_size,
+        signature,
+        number_of_this_disk,
+        number_of_disk_start_eocd,
+        total_number_of_entries_on_disk,
+        total_number_of_entries_in_cd,
+        cd_size,
+        cd_offset,
+        comment,
+        eocd_offset,
+        eocd_size,
     };
     Result::Ok(eocd)
 }
@@ -167,28 +169,28 @@ pub fn parse_cd(
         let file_name = decode_file_name(&file_name_bytes, is_utf8)?;
 
         let cdh = CDHeader {
-            signature: signature,
-            version_made_by: version_made_by,
-            version_needed_to_extract: version_needed_to_extract,
-            general_purpose_bit_flag: general_purpose_bit_flag,
-            compression_method: compression_method,
-            last_mod_file_time: last_mod_file_time,
-            last_mod_file_date: last_mod_file_date,
-            crc32: crc32,
-            compressed_size: compressed_size,
-            uncompressed_size: uncompressed_size,
-            file_name_length: file_name_length,
-            extra_field_length: extra_field_length,
-            file_comment_length: file_comment_length,
-            disk_number_start: disk_number_start,
-            internal_file_attributes: internal_file_attributes,
-            external_file_attributes: external_file_attributes,
-            relative_offset_of_local_header: relative_offset_of_local_header,
-            file_name: file_name,
-            extra_field: extra_field,
-            file_comment: file_comment,
-            is_utf8: is_utf8,
-            is_encrypted: is_encrypted,
+            signature,
+            version_made_by,
+            version_needed_to_extract,
+            general_purpose_bit_flag,
+            compression_method,
+            last_mod_file_time,
+            last_mod_file_date,
+            crc32,
+            compressed_size,
+            uncompressed_size,
+            file_name_length,
+            extra_field_length,
+            file_comment_length,
+            disk_number_start,
+            internal_file_attributes,
+            external_file_attributes,
+            relative_offset_of_local_header,
+            file_name,
+            extra_field,
+            file_comment,
+            is_utf8,
+            is_encrypted,
         };
         cdhs.push(cdh);
     }
@@ -242,8 +244,16 @@ pub fn load_file(
         console_log!("crc32: {} vs {}", crc32, cdh.crc32);
         console_log!("file_name: {} vs {}", file_name, cdh.file_name);
         console_log!("is_encrypted: {} vs {}", is_encrypted, cdh.is_encrypted);
-        console_log!("compressed_size: {} vs {}", compressed_size, cdh.compressed_size);
-        console_log!("uncompressed_size: {} vs {}", uncompressed_size, cdh.uncompressed_size);
+        console_log!(
+            "compressed_size: {} vs {}",
+            compressed_size,
+            cdh.compressed_size
+        );
+        console_log!(
+            "uncompressed_size: {} vs {}",
+            uncompressed_size,
+            cdh.uncompressed_size
+        );
 
         return Result::Err(LoadFileError::UnmatchHeader);
     }
@@ -485,7 +495,15 @@ mod tests {
 
     #[test]
     fn test_parse_cd_single_entry() {
-        let cd_data = create_cd_header("test.txt", 0, 5, 5, 0x12345678, COMPRESSION_METHOD_STORED, true);
+        let cd_data = create_cd_header(
+            "test.txt",
+            0,
+            5,
+            5,
+            0x12345678,
+            COMPRESSION_METHOD_STORED,
+            true,
+        );
         let mut cursor = io::Cursor::new(cd_data);
 
         let result = parse_cd(&mut cursor, 1);
@@ -517,7 +535,13 @@ mod tests {
     fn test_load_file_stored() {
         let file_content = b"Hello";
         let crc32 = 0xF7D18982u32; // CRC32 of "Hello"
-        let lfh = create_local_file_header("test.txt", file_content, COMPRESSION_METHOD_STORED, crc32, true);
+        let lfh = create_local_file_header(
+            "test.txt",
+            file_content,
+            COMPRESSION_METHOD_STORED,
+            crc32,
+            true,
+        );
 
         let cdh = CDHeader {
             signature: CD_SIGNATURE,
@@ -729,15 +753,33 @@ mod tests {
 
         // 1つ目のエントリ
         cd_data.extend(create_cd_header(
-            "file1.txt", 0, 10, 10, 0x11111111, COMPRESSION_METHOD_STORED, true
+            "file1.txt",
+            0,
+            10,
+            10,
+            0x11111111,
+            COMPRESSION_METHOD_STORED,
+            true,
         ));
         // 2つ目のエントリ
         cd_data.extend(create_cd_header(
-            "file2.txt", 100, 20, 20, 0x22222222, COMPRESSION_METHOD_STORED, true
+            "file2.txt",
+            100,
+            20,
+            20,
+            0x22222222,
+            COMPRESSION_METHOD_STORED,
+            true,
         ));
         // 3つ目のエントリ
         cd_data.extend(create_cd_header(
-            "subdir/file3.txt", 200, 30, 30, 0x33333333, COMPRESSION_METHOD_DEFLATED, true
+            "subdir/file3.txt",
+            200,
+            30,
+            30,
+            0x33333333,
+            COMPRESSION_METHOD_DEFLATED,
+            true,
         ));
 
         let mut cursor = io::Cursor::new(cd_data);
@@ -817,7 +859,13 @@ mod tests {
         // create_cdh_for_testヘルパーを使った簡潔なテスト
         let file_content = b"Hello";
         let crc32 = 0xF7D18982u32;
-        let lfh = create_local_file_header("test.txt", file_content, COMPRESSION_METHOD_STORED, crc32, true);
+        let lfh = create_local_file_header(
+            "test.txt",
+            file_content,
+            COMPRESSION_METHOD_STORED,
+            crc32,
+            true,
+        );
         let cdh = create_cdh_for_test("test.txt", 5, 5, crc32, COMPRESSION_METHOD_STORED);
 
         let cursor = io::Cursor::new(lfh);
