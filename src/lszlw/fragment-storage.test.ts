@@ -251,7 +251,9 @@ describe('FragmentStorage.putFragment', () => {
     await storage.putFragment('foo.txt', new Uint8Array([7, 8]).buffer);
 
     // 共有 DB を直接覗いてキー形式を確認 (getFragmentKey ロジックを検証)
-    const db = sharedDatabases.get('lszr');
+    // FragmentStorage が open する DB は必ず 'lszr' で登録される。
+    // biome-ignore lint/style/noNonNullAssertion: テスト内不変条件のため
+    const db = sharedDatabases.get('lszr')!;
     expect(db).toBeDefined();
     const fragmentRows = db.stores.fragment.rows;
     expect(fragmentRows.map((r) => r.key)).toContain(`${url}:foo.txt`);
@@ -282,7 +284,9 @@ describe('FragmentStorage per-url isolation on shared DB', () => {
     expect(Array.from(gotB)).toEqual([9, 9, 9, 9, 9, 9, 9, 9]);
 
     // 実キーが url プレフィックス込みであることを直接確認
-    const db = sharedDatabases.get('lszr');
+    // FragmentStorage が open する DB は必ず 'lszr' で登録される。
+    // biome-ignore lint/style/noNonNullAssertion: テスト内不変条件のため
+    const db = sharedDatabases.get('lszr')!;
     const keys = db.stores.fragment.rows.map((r) => r.key).sort();
     expect(keys).toEqual(['https://a.example.com/z.zip:shared', 'https://b.example.com/z.zip:shared']);
   });
@@ -296,7 +300,9 @@ describe('FragmentStorage.clearExpired', () => {
     await storage.putFragment('entry-1', new Uint8Array([1]).buffer);
     await storage.putFragment('entry-2', new Uint8Array([2]).buffer);
 
-    const db = sharedDatabases.get('lszr');
+    // FragmentStorage が open する DB は必ず 'lszr' で登録される。
+    // biome-ignore lint/style/noNonNullAssertion: テスト内不変条件のため
+    const db = sharedDatabases.get('lszr')!;
     await storage.clearExpired(db as unknown as IDBDatabase);
     expect(db.stores.fragment.rows).toHaveLength(2);
   });
@@ -308,7 +314,9 @@ describe('FragmentStorage.clearExpired', () => {
     // prepare を発火させる
     await storage.getFragment('warmup');
 
-    const db = sharedDatabases.get('lszr');
+    // FragmentStorage が open する DB は必ず 'lszr' で登録される。
+    // biome-ignore lint/style/noNonNullAssertion: テスト内不変条件のため
+    const db = sharedDatabases.get('lszr')!;
     const now = Date.now();
 
     // 対象 URL 側 1000 件 (新しい)
@@ -349,7 +357,9 @@ describe('FragmentStorage.clearExpired', () => {
       forceKeepCache: true,
     });
     await storage.putFragment('e0', new Uint8Array([0]).buffer);
-    const db = sharedDatabases.get('lszr');
+    // FragmentStorage が open する DB は必ず 'lszr' で登録される。
+    // biome-ignore lint/style/noNonNullAssertion: テスト内不変条件のため
+    const db = sharedDatabases.get('lszr')!;
     const now = Date.now();
     for (let i = 0; i < 1000; i++) {
       db.stores.fragment.rows.push({

@@ -188,7 +188,8 @@ describe('LSZRWrapper.getState', () => {
     // :eocd キャッシュに書かれた 22 バイトが全て 0xee であること
     const eocdPut = storageBehavior.putCalls.find((c) => c.name === ':eocd');
     expect(eocdPut).toBeDefined();
-    const bytes = new Uint8Array(eocdPut.buffer);
+    // biome-ignore lint/style/noNonNullAssertion: 直上の toBeDefined で保証
+    const bytes = new Uint8Array(eocdPut!.buffer);
     expect(bytes.length).toBe(22);
     expect(bytes.every((b) => b === 0xee)).toBe(true);
   });
