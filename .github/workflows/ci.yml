@@ -64,10 +64,21 @@ jobs:
           node-version: 22
           cache: pnpm
 
-      - name: Setup Rust toolchain
-        uses: dtolnay/rust-toolchain@stable
-        with:
-          targets: wasm32-unknown-unknown
+      # rust toolchain は wasm/rust-toolchain.toml を単一の真実にする。
+      # ubuntu-latest ランナーには rustup が pre-installed されているので、
+      # 追加の action は使わず `rustup show` に任せる (未インストールの
+      # toolchain は rustup がここで自動 fetch する)。
+      # release.yml が secrets を扱う都合で「サードパーティ action は
+      # 極力減らす」方針との整合も取れる。
+      - name: Install Rust toolchain (rust-toolchain.toml)
+        working-directory: wasm
+        run: |
+          set -euo pipefail
+          rustup show active-toolchain || rustup toolchain install
+          rustc --version
+          cargo --version
+          cargo fmt --version
+          cargo clippy --version
 
       - name: Cache Rust build
         uses: Swatinem/rust-cache@v2
