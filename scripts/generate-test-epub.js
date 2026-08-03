@@ -4,6 +4,7 @@
  *
  * Usage: node scripts/generate-test-epub.js
  * Output: static/test-500-entries.epub
+ * Requires: Info-ZIP の zip / unzip コマンド (macOS / Linux 標準。Windows 非対応)
  */
 
 const fs = require('fs');
@@ -24,7 +25,9 @@ const DIRS = [
 
 // 画像ファイル数
 const IMAGE_COUNT = 200;
-// チャプターファイル数 (500 - 5(固定ファイル) - 200(画像) = 295、296にして合計501にならないよう調整)
+// チャプターファイル数。ファイル数の内訳は
+// 固定5 (mimetype, container.xml, content.opf, toc.ncx, style.css) + 画像200 + チャプター295 = 500。
+// zip -r はこれにディレクトリエントリ (META-INF, OEBPS など5件) を加えるため、ZIP のエントリ総数は505になる
 const CHAPTER_COUNT = 295;
 
 function ensureDir(dir) {
@@ -243,4 +246,7 @@ async function main() {
   console.log('Temporary files cleaned up.');
 }
 
-main().catch(console.error);
+main().catch((e) => {
+  console.error(e);
+  process.exitCode = 1;
+});

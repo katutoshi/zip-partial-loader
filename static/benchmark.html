@@ -44,6 +44,8 @@
 
       try {
         // 1. 初期化ベンチマーク (EPUB読み込み + EOCD解析)
+        // NOTE: LSZL には worker を破棄する公開APIがないため、ここで生成した loader の
+        // worker はページを閉じるまで残る。iterations を増やしすぎないこと。
         log('[1] Initialize + Parse EOCD');
         const initTimes = [];
         for (let i = 0; i < iterations; i++) {
