@@ -7,7 +7,9 @@
     "moduleResolution": "node",
     "outDir": "lib",
     "declaration": true,
-    "esModuleInterop": true
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "strict": true
   },
   "include": ["src/lszlw"]
 }

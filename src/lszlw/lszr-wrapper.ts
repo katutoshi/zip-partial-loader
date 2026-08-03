@@ -15,8 +15,10 @@ const CD_ENTRY_NAME = ':cd';
 
 export default class LSZRWrapper {
   private state: WorkerState;
-  private init: Promise<LSZR>;
-  private inMemoryCache: Promise<ArrayBuffer>;
+  // prepare() の中で失敗時に undefined を戻す再入経路があるため、
+  // 型的にも `| undefined` (= optional) として宣言しておく。
+  private init?: Promise<LSZR>;
+  private inMemoryCache?: Promise<ArrayBuffer>;
   private storage?: FragmentStorage;
 
   public constructor(
@@ -52,8 +54,8 @@ export default class LSZRWrapper {
       const cdCacheData = this.storage && (await this.storage.getFragment(CD_ENTRY_NAME));
       let eocdData = eocdCacheData;
       let cdData = cdCacheData;
-      let lastChunk: DataChunk;
-      let inMemoryCache: ArrayBuffer;
+      let lastChunk: DataChunk | undefined;
+      let inMemoryCache: ArrayBuffer | undefined;
 
       if (!eocdData) {
         try {
@@ -82,7 +84,10 @@ export default class LSZRWrapper {
         const end = start + size;
         eocdRange.free();
 
-        eocdData = lastChunk[0].slice(start, end);
+        // 不変条件: !eocdCacheData のときは直上の `if (!eocdData)` 分岐が走り
+        // lastChunk は必ず代入済み。TS は前提を追えないので non-null assertion で示す。
+        // biome-ignore lint/style/noNonNullAssertion: 直上の条件分岐で必ず代入される不変条件
+        eocdData = lastChunk![0].slice(start, end);
         if (this.storage) {
           await this.storage.putFragment(EOCD_ENTRY_NAME, eocdData).catch(console.warn);
         }
@@ -158,7 +163,10 @@ export default class LSZRWrapper {
       let buff: ArrayBuffer;
 
       if (this.state.fallback) {
-        const inMemoryCache = await this.inMemoryCache;
+        // 不変条件: fallback=true は cacheInMemory() 経由でしか立たず、
+        // その中で this.inMemoryCache が必ずセットされる。
+        // biome-ignore lint/style/noNonNullAssertion: fallback=true と inMemoryCache セットは同時に立つ
+        const inMemoryCache = await this.inMemoryCache!;
         buff = inMemoryCache.slice(start, end + 1);
       } else {
         try {

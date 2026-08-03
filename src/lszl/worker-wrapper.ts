@@ -100,7 +100,12 @@ export default class WorkerWrapper {
   };
 
   public terminate = () => {
-    Object.keys(this.resolvers.getData).forEach(this.abort);
+    // `forEach(this.abort)` だと通常メソッド `abort` の this が失われ、
+    // pending がある状態で terminate すると TypeError で落ちる。
+    // アロー関数で this を確保する。
+    Object.keys(this.resolvers.getData).forEach((entryName) => {
+      this.abort(entryName);
+    });
     this.worker.terminate();
   };
 }

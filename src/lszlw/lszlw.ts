@@ -56,7 +56,7 @@ self.onmessage = (ev: MessageEvent) => {
           forceInMemoryCache,
           forceKeepCache,
           onUpdateState: (state) => {
-            postMessage({ type: MessageType.UPDATE_STATE, state, meta }, undefined);
+            postMessage({ type: MessageType.UPDATE_STATE, payload: state, meta }, undefined);
           },
         });
         postPromise(MessageType.INIT, lsuzrw.getState(), meta);

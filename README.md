@@ -38,9 +38,9 @@ Development
 -----------
 
 ``` sh
-npm install     # install dependencies
-npm start       # start webpack-dev-server
-npm run build   # build package
+pnpm install    # install dependencies
+pnpm run dev    # start webpack-dev-server
+pnpm run build  # build package
 ```
 
 Acknowledgements

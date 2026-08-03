@@ -63,7 +63,10 @@ export default class FragmentStorage {
     try {
       const transaction = db.transaction([FRAGMENT_OBJECT_STORE_NAME, GROUP_STORE_NAME], 'readwrite');
       if (signal) {
-        signal.onabort = transaction.abort;
+        // `signal.onabort = transaction.abort` だと発火時に this=AbortSignal で
+        // 呼ばれ IDBTransaction 側で Illegal invocation になる。this を保つため
+        // クロージャで包む。
+        signal.onabort = () => transaction.abort();
       }
       const fragmentStore = transaction.objectStore(FRAGMENT_OBJECT_STORE_NAME);
       const groupStore = transaction.objectStore(GROUP_STORE_NAME);
@@ -78,14 +81,14 @@ export default class FragmentStorage {
 
       return result.buffer;
     } catch (err) {
-      if (err && err.name === 'AbortError') {
+      if (err instanceof Error && err.name === 'AbortError') {
         return undefined;
       }
       console.error(err);
       return undefined;
     } finally {
       if (signal) {
-        signal.onabort = onabort;
+        signal.onabort = onabort ?? null;
       }
     }
   };
