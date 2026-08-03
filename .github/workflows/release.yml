@@ -64,6 +64,9 @@ jobs:
       # されており、`rustup show`/`rustup toolchain install` に任せれば toml が
       # 単一の真実として機能する (未インストールの toolchain もここで fetch される)。
       # これで release 経路から dtolnay 依存を落とせる。
+      # 前提: `rustup toolchain install` を引数無しで叩けるのは rustup >= 1.28。
+      # 2026-08 時点で ubuntu-24.04 の rustup は 1.29 系なので現状問題ないが、
+      # 将来ランナーがダウングレードしたら明示引数版に切り替える。
       - name: Install Rust toolchain (rust-toolchain.toml)
         working-directory: wasm
         run: |
