@@ -47,7 +47,7 @@ jobs:
         run: pnpm run test:coverage
 
   build:
-    name: Build (wasm + webpack)
+    name: Build (wasm + tsc)
     runs-on: ubuntu-latest
     env:
       WASM_PACK_VERSION: v0.13.1
@@ -130,13 +130,14 @@ jobs:
       - name: Build wasm (fail fast)
         run: ./wasm/build.sh
 
-      # tsconfig.lszlw.json は wasm/pkg の型定義を前提とするため、
-      # wasm ビルドが済んでいるこの build ジョブでしか実行できない
+      # tsconfig.json は wasm/pkg 側の d.ts を参照するため、wasm ビルドが
+      # 済んでいるこの build ジョブでのみ全体の tsc --noEmit を通せる
       # (check ジョブには wasm/pkg が無い)。
-      - name: Type check (tsc --noEmit, lszlw)
-        run: pnpm exec tsc --noEmit -p tsconfig.lszlw.json
+      - name: Type check (tsc --noEmit, full)
+        run: pnpm exec tsc --noEmit
 
-      - name: Build (webpack, production)
-        env:
-          NODE_ENV: production
+      # 0.12.x で webpack バンドルを廃止し、tsc 出力 + wasm-pack 生成物を
+      # そのまま同梱する ESM 配布に切り替えたためこのステップは `pnpm build`
+      # 一発で完結する (旧: `NODE_ENV=production` で webpack production 固定)。
+      - name: Build (wasm + tsc)
         run: pnpm run build

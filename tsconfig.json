@@ -2,14 +2,24 @@
   "compilerOptions": {
     "target": "ES2020",
     "module": "ESNext",
+    // Worker 側 (src/lszlw/) は WebWorker 型を、メイン側 (src/lszl/) は DOM 型を
+    // それぞれ必要とする。単一 tsconfig で両方をコンパイルするため両方の lib を有効化する。
+    // 個別のコード内では self / window の使い分けで実行スコープを分けている。
     "lib": ["ES2020", "DOM", "DOM.Iterable", "WebWorker"],
-    "moduleResolution": "node",
-    "outDir": "lib",
+    // Vite / webpack 5 の bundler が消費するため bundler 解決を採用。
+    // `new URL(..., import.meta.url)` の解決や .js 拡張子付きの相対 import が扱いやすい。
+    "moduleResolution": "bundler",
+    "rootDir": "./src",
+    "outDir": "./dist",
     "declaration": true,
+    "declarationMap": false,
     "esModuleInterop": true,
     "strict": true,
     "skipLibCheck": true,
-    "inlineSourceMap": true
+    "inlineSourceMap": true,
+    // `import init from '../../wasm/pkg/lszr.js'` を確実にリテラルのまま出力するため。
+    "allowImportingTsExtensions": false
   },
-  "include": ["src/lszl"]
+  "include": ["src/**/*.ts"],
+  "exclude": ["src/**/*.test.ts", "src/test", "node_modules"]
 }
