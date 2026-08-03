@@ -270,8 +270,9 @@ describe('LSZRWrapper.getBuffer', () => {
   it('should reset this.init on prepare() failure and allow retry on subsequent call', async () => {
     // 未テスト経路: prepare() 失敗 -> `this.init = undefined` -> 次回 prepare() で再試行可能。
     // 1回目は downloadRange が Content-Range 欠落で "Content-Range not found." を投げて
-    // prepare が RangeNotSupportedError ではない例外で reject する (fallback 経路には
-    // 入らないため、cacheInMemory の未 catch な .then 副作用 (別バグ) を避けられる)。
+    // prepare が RangeNotSupportedError ではない例外で reject する。fallback 経路には
+    // 入らないので、この本テストの目的 (init リセット) と cacheInMemory 内部の挙動を
+    // 完全に切り離せる (unhandled rejection 回避は別テストで検証)。
     // 2回目はサーバを正常な 206 応答に差し替えて再試行が通ることを実挙動で検証する。
     let firstCall = true;
     server.use(
@@ -329,6 +330,45 @@ describe('LSZRWrapper.getBuffer', () => {
     const state = await wrapper.getState();
     expect(state.entryNames).toEqual(['a.txt']);
     expect(state.fallback).toBe(false);
+  });
+
+  it('should NOT emit unhandledRejection when downloadAll fails inside cacheInMemory (500 path)', async () => {
+    // 回帰テスト: lszr-wrapper.ts:cacheInMemory 内の `promise.then(async ...)` に
+    // reject ハンドラが無いと、downloadAll が失敗した際に unhandled rejection が
+    // 発生する。機能面の後始末 (this.inMemoryCache = undefined) は直上の
+    // promise.catch が担っており、この .then 側にも空の .catch を付けた上での
+    // 挙動確認。ハンドラを外す (ミューテーション) と本テストは fail する。
+
+    server.use(http.get(TEST_URL, () => new HttpResponse(null, { status: 500 })));
+
+    const unhandled: unknown[] = [];
+    const onUnhandled = (reason: unknown) => {
+      unhandled.push(reason);
+    };
+    process.on('unhandledRejection', onUnhandled);
+
+    try {
+      const wrapper = new LSZRWrapper({
+        url: TEST_URL,
+        noUseCache: true,
+        onUpdateState: () => {},
+      });
+
+      // 500 → downloadRange が RangeNotSupportedError → cacheInMemory →
+      // downloadAll が 500 で "Get request failed" throw → prepare が reject
+      await expect(wrapper.getState()).rejects.toThrow(/Get request failed/);
+
+      // cacheInMemory の .then / .catch がマイクロタスクキューを消化しきるまで待つ
+      for (let i = 0; i < 5; i++) {
+        await Promise.resolve();
+      }
+      // Node の unhandledRejection は次の tick で発火する
+      await new Promise((resolve) => setImmediate(resolve));
+
+      expect(unhandled).toEqual([]);
+    } finally {
+      process.off('unhandledRejection', onUnhandled);
+    }
   });
 
   it('should return CACHED bytes (not network bytes) when storage has the fragment', async () => {
