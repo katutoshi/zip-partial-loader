@@ -91,9 +91,17 @@ jobs:
         working-directory: wasm
         run: cargo fmt --all --check
 
-      - name: Clippy (all targets, deny warnings)
+      - name: Clippy (host, all targets, deny warnings)
         working-directory: wasm
         run: cargo clippy --all-targets -- -D warnings
+
+      # wasm32 ターゲットの clippy も回す。tests/web.rs は
+      # `#![cfg(target_arch = "wasm32")]` で host からは丸ごと除外されるため、
+      # host clippy だけだと wasm32 でのみ発生する違反 (例: 定数 assert_eq!
+      # による clippy::eq_op) を検知できない死角がある。
+      - name: Clippy (wasm32, all targets, deny warnings)
+        working-directory: wasm
+        run: cargo clippy --all-targets --target wasm32-unknown-unknown -- -D warnings
 
       - name: Install wasm-pack (pinned)
         run: |
