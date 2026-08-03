@@ -39,7 +39,7 @@ Development
 
 ``` sh
 pnpm install    # install dependencies
-pnpm start      # start webpack-dev-server
+pnpm run dev    # start webpack-dev-server
 pnpm run build  # build package
 ```
 
