@@ -85,6 +85,16 @@ jobs:
         with:
           workspaces: wasm
 
+      # 品質ゲート: 既存指摘は事前に潰し済み。fmt/clippy を CI で守り、
+      # 以降新規に混入する差分をブロックする。
+      - name: Rustfmt check
+        working-directory: wasm
+        run: cargo fmt --all --check
+
+      - name: Clippy (all targets, deny warnings)
+        working-directory: wasm
+        run: cargo clippy --all-targets -- -D warnings
+
       - name: Install wasm-pack (pinned)
         run: |
           set -euo pipefail
