@@ -112,7 +112,7 @@ impl LSZR {
                     self.eocd.cd_offset
                 }
             }
-            Err(_) => unreachable!("offset not found in sorted_offsets")
+            Err(_) => unreachable!("offset not found in sorted_offsets"),
         };
 
         Result::Ok(Range {
