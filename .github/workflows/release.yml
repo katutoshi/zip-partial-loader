@@ -24,9 +24,6 @@ jobs:
     if: github.ref == 'refs/heads/master'
     env:
       WASM_PACK_VERSION: v0.13.1
-      # webpack を production ビルドさせる。設定しないと prepack 経由の
-      # `npm run build` が development のまま publish/pack されてしまう。
-      NODE_ENV: production
     steps:
       - name: Checkout
         uses: actions/checkout@v4

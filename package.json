@@ -7,7 +7,7 @@
   "scripts": {
     "dev": "webpack serve --open",
     "clean": "rm -rf dist lib && cd wasm && rm -rf pkg && cargo clean",
-    "build": "tsc && webpack --config webpack.config.lszl.js --mode=${NODE_ENV:-development}",
+    "build": "tsc && webpack --config webpack.config.lszl.js --mode=production",
     "prepack": "$npm_execpath run build",
     "test": "vitest",
     "test:run": "vitest run",
