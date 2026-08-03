@@ -40,8 +40,14 @@ jobs:
       # publish 側は runner にプリインストールされている npm を使う。
       # setup-node の registry-url が書き出す ~/.npmrc + NODE_AUTH_TOKEN の仕組みは
       # pnpm 移行後もそのまま機能する。
+      # release.yml は NODE_AUTH_TOKEN (npm publish 用) を持ち込むため、
+      # dtolnay/rust-toolchain と同じ方針で pnpm/action-setup も SHA pin する。
+      # b906affcce14559ad1aafd4ab0e942779e9f58b1 は v4.3.0 annotated tag の指す
+      # コミット (gh api repos/pnpm/action-setup/git/tags/... で確認済み、
+      # tag object の GPG 署名も verified)。tag 差し替えによる将来的な悪意ある
+      # コード注入経路をここで塞ぐ。
       - name: Setup pnpm
-        uses: pnpm/action-setup@v4
+        uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4.3.0
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
