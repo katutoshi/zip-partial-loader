@@ -263,7 +263,7 @@ describe('LSZRWrapper.getBuffer', () => {
 
     // onUpdateState が fallback:true 付きの payload で呼ばれた回が
     // 少なくとも 1 回存在すること (payload を実際に検証)
-    const fallbackCalls = onUpdate.mock.calls.filter(([s]: [{ fallback: boolean }]) => s.fallback === true);
+    const fallbackCalls = onUpdate.mock.calls.filter((call) => (call[0] as { fallback: boolean }).fallback === true);
     expect(fallbackCalls.length).toBeGreaterThanOrEqual(1);
   });
 
