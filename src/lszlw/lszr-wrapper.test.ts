@@ -240,6 +240,99 @@ describe('LSZRWrapper.getBuffer', () => {
     expect(err).not.toBeInstanceOf(Error); // util/abort の AbortError は Error を継承していない
   });
 
+  it('should notify onUpdateState with fallback:true when RangeNotSupportedError triggers in-memory fallback', async () => {
+    // 未テスト経路: RangeNotSupportedError -> cacheInMemory の setState 経路。
+    // "呼ばれたこと" だけでは fallback フラグ有無を検出できないので、payload を検証する。
+    server.use(
+      http.get(TEST_URL, () => {
+        // status 200 = Range 未サポート応答。downloadRange が RangeNotSupportedError を投げる。
+        return new HttpResponse(new Uint8Array(1000).fill(0xaa), { status: 200 });
+      }),
+    );
+
+    const onUpdate = vi.fn();
+    const wrapper = new LSZRWrapper({
+      url: TEST_URL,
+      noUseCache: true,
+      onUpdateState: onUpdate,
+    });
+    const state = await wrapper.getState();
+
+    // 状態自体が fallback:true になっていること
+    expect(state.fallback).toBe(true);
+
+    // onUpdateState が fallback:true 付きの payload で呼ばれた回が
+    // 少なくとも 1 回存在すること (payload を実際に検証)
+    const fallbackCalls = onUpdate.mock.calls.filter(
+      ([s]: [{ fallback: boolean }]) => s.fallback === true,
+    );
+    expect(fallbackCalls.length).toBeGreaterThanOrEqual(1);
+  });
+
+  it('should reset this.init on prepare() failure and allow retry on subsequent call', async () => {
+    // 未テスト経路: prepare() 失敗 -> `this.init = undefined` -> 次回 prepare() で再試行可能。
+    // 1回目は downloadRange が Content-Range 欠落で "Content-Range not found." を投げて
+    // prepare が RangeNotSupportedError ではない例外で reject する (fallback 経路には
+    // 入らないため、cacheInMemory の未 catch な .then 副作用 (別バグ) を避けられる)。
+    // 2回目はサーバを正常な 206 応答に差し替えて再試行が通ることを実挙動で検証する。
+    let firstCall = true;
+    server.use(
+      http.get(TEST_URL, ({ request }) => {
+        if (firstCall) {
+          firstCall = false;
+          // status=206 だが Content-Range ヘッダ無し → downloadRange 内で
+          // 'Content-Range not found.' が throw され、prepare の catch では
+          // RangeNotSupportedError ではないので再 throw されて promise が reject する。
+          return new HttpResponse(new Uint8Array(22), { status: 206 });
+        }
+        // 2回目以降は mockRangeServer 相当の正常応答
+        const range = request.headers.get('Range');
+        if (range === 'bytes=-65557') {
+          const buf = new Uint8Array(1000);
+          for (let i = 978; i < 1000; i++) buf[i] = 0xee;
+          for (let i = 500; i < 600; i++) buf[i] = 0xcd;
+          return new HttpResponse(buf, {
+            status: 206,
+            headers: { 'Content-Range': 'bytes 0-999/1000' },
+          });
+        }
+        const match = range?.match(/bytes=(\d+)-(\d+)/);
+        if (match) {
+          const start = parseInt(match[1], 10);
+          const end = parseInt(match[2], 10);
+          const size = end - start + 1;
+          return new HttpResponse(new Uint8Array(size).fill(0xcc), {
+            status: 206,
+            headers: { 'Content-Range': `bytes ${start}-${end}/1000` },
+          });
+        }
+        return new HttpResponse(null, { status: 400 });
+      }),
+    );
+
+    const wrapper = new LSZRWrapper({
+      url: TEST_URL,
+      noUseCache: true,
+      onUpdateState: () => {},
+    });
+
+    // 1回目は必ず失敗する
+    await expect(wrapper.getState()).rejects.toThrow(/Content-Range not found/);
+
+    // マイクロタスクを進めて、prepare の promise.catch(() => { this.init = undefined; })
+    // ハンドラを確実に実行させる (this.init のリセットが `this.init = promise` より
+    // 後ろに登録された経路のため、await での rejects 検出だけでは順序が保証されない)。
+    await Promise.resolve();
+    await Promise.resolve();
+
+    // 2回目の呼び出しで prepare() が新しい promise を作って再試行できることを検証。
+    // this.init が undefined にリセットされていなければ、rejected な旧 promise が
+    // そのまま返って再度 rejects.toThrow するはず。
+    const state = await wrapper.getState();
+    expect(state.entryNames).toEqual(['a.txt']);
+    expect(state.fallback).toBe(false);
+  });
+
   it('should return CACHED bytes (not network bytes) when storage has the fragment', async () => {
     // A2 対策: 内容比較でキャッシュ経路とネットワーク経路を区別。
     // キャッシュ経路が短絡されるミュータント(E1)を確実に検出する。
