@@ -34,11 +34,20 @@ jobs:
           # タグ作成・release-it の changelog 取得のため全履歴を取得する
           fetch-depth: 0
 
+      # setup-node の cache: pnpm を有効にするため setup-node より前に pnpm を入れる。
+      # release-it の npm plugin は内部で `npm publish` を直接呼ぶため
+      # (release-it/lib/plugin/npm/npm.js: publishPackageManager 既定値 'npm')、
+      # publish 側は runner にプリインストールされている npm を使う。
+      # setup-node の registry-url が書き出す ~/.npmrc + NODE_AUTH_TOKEN の仕組みは
+      # pnpm 移行後もそのまま機能する。
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: 22
-          cache: npm
+          cache: pnpm
           # `npm publish` から NODE_AUTH_TOKEN で npmjs.org を参照させる
           registry-url: 'https://registry.npmjs.org'
 
@@ -67,13 +76,13 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y binaryen
 
       - name: Install dependencies
-        run: npm ci
+        run: pnpm install --frozen-lockfile
 
       - name: Lint (Biome)
-        run: npm run lint
+        run: pnpm run lint
 
       - name: Unit tests
-        run: npm run test:run
+        run: pnpm run test:run
 
       # ci.yml と同じ fail-fast: wasm-opt 未インストール時に未最適化バイナリが
       # tgz に混入したり、build.sh の実行権が落ちて古い wasm/pkg が黙って再利用
@@ -92,7 +101,10 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           # npm publish 用 (setup-node の registry-url 経由で .npmrc に流し込まれる)
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-        # release-it は devDependency で 21.0.1 exact pin 済み。npx はローカル解決するので
+        # release-it は devDependency で 21.0.1 exact pin 済み。pnpm exec はローカル解決するので
         # NPM_TOKEN 環境下でも lockfile 外のツリーを取りに行かない。
         # package.json のバージョンは事前にコミット済みという運用なので --no-increment を必須。
-        run: npx release-it --ci --no-increment
+        # なお release-it 内部の `npm publish` 呼び出しは npm CLI を直接使う (release-it/lib/plugin/npm/npm.js
+        # の publishPackageManager 既定値 'npm')。setup-node が書き出す ~/.npmrc + NODE_AUTH_TOKEN が
+        # そのまま効くので pnpm 側では追加設定不要。
+        run: pnpm exec release-it --ci --no-increment
