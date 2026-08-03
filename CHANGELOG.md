@@ -1,3 +1,15 @@
+0.12.0
+------
+
+- 破壊的変更: UMD グローバル (`window.LSZL` 等) での配布を廃止し、ES モジュール (`import LSZL from 'zip-partial-loader'`) 専用の配布に変更
+- 破壊的変更: `dist/lszlw.js` を配信ディレクトリに手コピーしてパス文字列 (`worker: '/static/dist/lszlw.js'` 等) で渡す運用を廃止。Worker/wasm はバンドラが `new URL(..., import.meta.url)` を静的解析して自動配置する方式に一本化
+- 破壊的変更: `worker` オプション (`string | URL`) 自体は後方互換で残したが、渡す JS は module worker 前提になった (classic worker としての読み込みは非対応)
+- 改善: Worker/wasm の解決をバンドラの自動配置に委ねたことで、Vite / webpack 5 / Rollup で copy プラグインや専用設定なしに動作するようになった
+- 改善: `package.json` に `exports` フィールド (`.` / `./worker` / `./package.json`) を整備
+- 改善: 配布形態を webpack バンドルから tsc + wasm-pack `--target web` の ESM 直配布に切り替え、`dist/lszl/lszl.d.ts` / `dist/lszlw/lszlw.d.ts` などの型定義を同梱するようになった
+- 不具合修正: build を常に production モードで固定したうえで webpack バンドル自体を撤去したことで出力から `eval` が消え、Rollup/Vite の `EVAL` warning や CSP (`unsafe-eval` 未許可) 環境で動作しない問題が解消された
+- 開発基盤: `example/vite/` に、bundler 側の追加設定なしで動作することを検証する最小サンプルを追加
+
 0.11.1
 ------
 
