@@ -341,11 +341,21 @@ describe('LSZRWrapper.getBuffer', () => {
 
     server.use(http.get(TEST_URL, () => new HttpResponse(null, { status: 500 })));
 
+    // tsconfig.lszlw.json は webworker lib で Node グローバル型を含まないため、
+    // ここだけ Node 側の `process` を局所的に型付けして拾う (vitest = Node
+    // ランタイム上で走るので実行時は必ず存在する)。@types/node を丸ごと
+    // 引き込むと webworker 向け型チェック全体が汚れるためこの経路を選ぶ。
+    type NodeProcess = {
+      on(event: 'unhandledRejection', listener: (reason: unknown) => void): void;
+      off(event: 'unhandledRejection', listener: (reason: unknown) => void): void;
+    };
+    const nodeProcess = (globalThis as unknown as { process: NodeProcess }).process;
+
     const unhandled: unknown[] = [];
     const onUnhandled = (reason: unknown) => {
       unhandled.push(reason);
     };
-    process.on('unhandledRejection', onUnhandled);
+    nodeProcess.on('unhandledRejection', onUnhandled);
 
     try {
       const wrapper = new LSZRWrapper({
@@ -362,12 +372,14 @@ describe('LSZRWrapper.getBuffer', () => {
       for (let i = 0; i < 5; i++) {
         await Promise.resolve();
       }
-      // Node の unhandledRejection は次の tick で発火する
-      await new Promise((resolve) => setImmediate(resolve));
+      // Node の unhandledRejection は次の tick で発火する。setTimeout(0) は
+      // タスクキュー1周に相当し、setImmediate と同等の待ちとして機能する。
+      // (setImmediate は Node 専用グローバルで、webworker lib 型と両立しない)
+      await new Promise((resolve) => setTimeout(resolve, 0));
 
       expect(unhandled).toEqual([]);
     } finally {
-      process.off('unhandledRejection', onUnhandled);
+      nodeProcess.off('unhandledRejection', onUnhandled);
     }
   });
 
