@@ -31,7 +31,6 @@ export default class WorkerWrapper {
   constructor(
     private params: {
       url: string;
-      key?: string;
       // 後方互換のため文字列も受け付ける。Worker が別ドメインに置かれる CDN 配布や、
       // どうしてもハッシュ付き自動配置に載せられない環境向け。文字列を渡す場合、
       // その先の JS は module worker として解釈される点に注意 (0.12 以降)。

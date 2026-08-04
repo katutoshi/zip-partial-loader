@@ -19,7 +19,6 @@ export default class LSZL {
   ) {
     const url = new URL(params.url, window.location.href).href;
     this.url = url;
-    this.throwIfAbort();
 
     this.setupWorkers = (async () => {
       const firstWorker = new WorkerWrapper({
@@ -91,14 +90,12 @@ export default class LSZL {
   };
 
   public getEntryNames = async (): Promise<string[]> => {
-    this.throwIfAbort();
     const workers = await this.setupWorkers;
     const state = await workers[0].getState();
     return state.entryNames;
   };
 
   public getBuffer = async (entryName: string): Promise<ArrayBuffer> => {
-    this.throwIfAbort();
     const workers = await this.setupWorkers;
     for (let index = 0; index < workers.length; index++) {
       const worker = workers[index];
@@ -110,10 +107,6 @@ export default class LSZL {
     const worker = await this.getMostFreeWorker();
     return worker.getBuffer(entryName);
   };
-
-  private throwIfAbort() {
-    // NOP
-  }
 
   private fallback(worker: WorkerWrapper) {
     this.setupWorkers = this.setupWorkers
