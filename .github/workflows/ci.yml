@@ -56,6 +56,7 @@ jobs:
     runs-on: ubuntu-latest
     env:
       WASM_PACK_VERSION: v0.13.1
+      BINARYEN_VERSION: version_116
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -122,8 +123,20 @@ jobs:
           sudo install -m 0755 "${tmp}/wasm-pack-${WASM_PACK_VERSION}-x86_64-unknown-linux-musl/wasm-pack" /usr/local/bin/wasm-pack
           wasm-pack --version
 
-      - name: Install wasm-opt (binaryen)
-        run: sudo apt-get update && sudo apt-get install -y binaryen
+      # Binaryen (wasm-opt) を tarball で pin する (issue #24 参照)。
+      # release.yml と同じ手順を CI 側でも踏み、CI が緑になった状態と release が
+      # 使う wasm-opt を一致させる。生成 wasm が壊れた場合は build.sh 末尾の
+      # verify-exports.py が非ゼロで exit してビルド全体を落とす。
+      - name: Install wasm-opt (binaryen, pinned)
+        run: |
+          set -euo pipefail
+          tarball="binaryen-${BINARYEN_VERSION}-x86_64-linux.tar.gz"
+          url="https://github.com/WebAssembly/binaryen/releases/download/${BINARYEN_VERSION}/${tarball}"
+          tmp="$(mktemp -d)"
+          curl -sSfL -o "${tmp}/${tarball}" "${url}"
+          tar -xzf "${tmp}/${tarball}" -C "${tmp}"
+          sudo install -m 0755 "${tmp}/binaryen-${BINARYEN_VERSION}/bin/wasm-opt" /usr/local/bin/wasm-opt
+          wasm-opt --version
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
