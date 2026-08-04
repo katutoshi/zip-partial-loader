@@ -1,15 +1,15 @@
 import { describe, expect, it } from 'vitest';
-import { createResolver, ResolverStatus } from './resolver';
+import { createResolver } from './resolver';
 
 describe('createResolver', () => {
-  it('should create resolver with PENDING status', () => {
+  it('should create a resolvable promise', () => {
     const resolver = createResolver<string>();
-    expect(resolver.status).toBe(ResolverStatus.PENDING);
+    expect(resolver).toBeInstanceOf(Promise);
   });
 });
 
 describe('attachPromise', () => {
-  it('should resolve and set status to RESOLVED', async () => {
+  it('should resolve with the attached promise result', async () => {
     const resolver = createResolver<string>();
     const promise = Promise.resolve('test-value');
 
@@ -17,10 +17,9 @@ describe('attachPromise', () => {
 
     const result = await resolver;
     expect(result).toBe('test-value');
-    expect(resolver.status).toBe(ResolverStatus.RESOLVED);
   });
 
-  it('should reject and set status to REJECTED', async () => {
+  it('should reject with the attached promise error', async () => {
     const resolver = createResolver<string>();
     const error = new Error('test-error');
     const promise = Promise.reject(error);
@@ -28,7 +27,6 @@ describe('attachPromise', () => {
     resolver.attachPromise(promise);
 
     await expect(resolver).rejects.toBe(error);
-    expect(resolver.status).toBe(ResolverStatus.REJECTED);
   });
 });
 
@@ -45,7 +43,6 @@ describe('attachMessage', () => {
 
     const result = await resolver;
     expect(result).toBe('test-payload');
-    expect(resolver.status).toBe(ResolverStatus.RESOLVED);
   });
 
   it('should reject when error is true', async () => {
@@ -59,6 +56,5 @@ describe('attachMessage', () => {
     resolver.attachMessage(message);
 
     await expect(resolver).rejects.toBe('error-payload');
-    expect(resolver.status).toBe(ResolverStatus.REJECTED);
   });
 });

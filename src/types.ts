@@ -37,7 +37,6 @@ export type InitRequestMessage = RequestMessage<
     forceKeepCache?: boolean;
   }
 >;
-export type InitResponseMessage = RequestMessage<MessageType.INIT, WorkerState>;
 
 export type GetDataRequestMessage = RequestMessage<MessageType.GET_DATA, string, void>;
 export type GetDataResponseMessage = ResponseMessage<MessageType.GET_DATA, ArrayBuffer, string>;
