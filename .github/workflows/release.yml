@@ -24,7 +24,7 @@ jobs:
     if: github.ref == 'refs/heads/master'
     env:
       WASM_PACK_VERSION: v0.13.1
-      BINARYEN_VERSION: version_116
+      BINARYEN_VERSION: version_131
     steps:
       - name: Checkout
         uses: actions/checkout@v4
