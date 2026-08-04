@@ -50,11 +50,11 @@ describe('WorkerWrapper constructor', () => {
     const wrapper = new WorkerWrapper(params);
 
     const worker = lastWorker();
-    // デフォルトでは `new Worker(new URL('../lszlw/lszlw.js', import.meta.url), ...)` を
+    // デフォルトでは `new Worker(new URL('../kzplw/kzplw.js', import.meta.url), ...)` を
     // 直書きで叩く (worker-wrapper.ts createDefaultWorker のコメント参照)。
     // URL オブジェクトそのもの (文字列ではなく) が Vite の静的解析トリガになる。
     expect(worker.url).toBeInstanceOf(URL);
-    expect((worker.url as URL).pathname).toMatch(/lszlw\.js$/);
+    expect((worker.url as URL).pathname).toMatch(/kzplw\.js$/);
     // module worker として起動されていること。ESM 形式の Worker JS を配布するため必須。
     expect(worker.options).toEqual({ type: 'module' });
     expect(worker.postMessage).toHaveBeenCalledTimes(1);

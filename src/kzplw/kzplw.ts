@@ -6,7 +6,7 @@ import {
   MessageType,
   type RequestMessage,
 } from '../types';
-import LSZRWrapper from './lszr-wrapper';
+import KzplWrapper from './kzpl-wrapper';
 
 const dataHandlers: {
   [entryName: string]: {
@@ -38,7 +38,7 @@ function postTransferable<T>(type: string, promise: TransferablePromise<T>, meta
   );
 }
 
-const prepare: Resolver<LSZRWrapper> = createResolver();
+const prepare: Resolver<KzplWrapper> = createResolver();
 
 self.onmessage = (ev: MessageEvent) => {
   const message = ev.data as RequestMessage;
@@ -50,7 +50,7 @@ self.onmessage = (ev: MessageEvent) => {
     } = message as InitRequestMessage;
     prepare.attachPromise(
       (async () => {
-        const lsuzrw = new LSZRWrapper({
+        const kzplw = new KzplWrapper({
           url,
           noUseCache,
           forceInMemoryCache,
@@ -59,8 +59,8 @@ self.onmessage = (ev: MessageEvent) => {
             postMessage({ type: MessageType.UPDATE_STATE, payload: state, meta }, undefined);
           },
         });
-        postPromise(MessageType.INIT, lsuzrw.getState(), meta);
-        return lsuzrw;
+        postPromise(MessageType.INIT, kzplw.getState(), meta);
+        return kzplw;
       })(),
     );
   } else if (type === MessageType.GET_DATA) {
@@ -70,7 +70,7 @@ self.onmessage = (ev: MessageEvent) => {
       return;
     }
     const abort = new AbortController();
-    const promise = prepare.then((lsuzrw) => lsuzrw.getBuffer(entryName, abort.signal));
+    const promise = prepare.then((kzplw) => kzplw.getBuffer(entryName, abort.signal));
     dataHandlers[entryName] = {
       promise,
       abort,

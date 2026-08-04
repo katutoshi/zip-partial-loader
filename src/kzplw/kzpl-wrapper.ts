@@ -1,11 +1,11 @@
-import init, { LSZR } from '../../wasm/pkg/lszr.js';
+import init, { Kzpl } from '../../wasm/pkg/kzpl.js';
 import { type DataChunk, downloadAll, downloadRange } from './downloader';
 
 // WASM 初期化 (一度だけ実行)。
 // wasm-pack `--target web` 出力の `init()` は引数を省略すると
-// `new URL('lszr_bg.wasm', import.meta.url)` を自動で解決する。この import.meta.url は
-// `wasm/pkg/lszr.js` 自身のロケーションになるため、消費側の bundler (Vite / webpack 5)
-// が lszr.js を静的解析した時点で `lszr_bg.wasm` を同ディレクトリに再配置してくれる。
+// `new URL('kzpl_bg.wasm', import.meta.url)` を自動で解決する。この import.meta.url は
+// `wasm/pkg/kzpl.js` 自身のロケーションになるため、消費側の bundler (Vite / webpack 5)
+// が kzpl.js を静的解析した時点で `kzpl_bg.wasm` を同ディレクトリに再配置してくれる。
 // 以前は webpack の asset/resource 経由で URL 文字列を受け取っていたが、library 側で
 // ハッシュ URL を焼き込むと消費側が再配置できず、`dist/*.wasm` を手コピーする "おまじない"
 // が必要だった。この経路を丸ごと廃止する。
@@ -19,11 +19,11 @@ import FragmentStorage from './fragment-storage';
 const EOCD_ENTRY_NAME = ':eocd';
 const CD_ENTRY_NAME = ':cd';
 
-export default class LSZRWrapper {
+export default class KzplWrapper {
   private state: WorkerState;
   // prepare() の中で失敗時に undefined を戻す再入経路があるため、
   // 型的にも `| undefined` (= optional) として宣言しておく。
-  private init?: Promise<LSZR>;
+  private init?: Promise<Kzpl>;
   private inMemoryCache?: Promise<ArrayBuffer>;
   private storage?: FragmentStorage;
 
@@ -49,7 +49,7 @@ export default class LSZRWrapper {
     this.prepare();
   }
 
-  private prepare(): Promise<LSZR> {
+  private prepare(): Promise<Kzpl> {
     if (this.init) {
       return this.init;
     }
@@ -81,7 +81,7 @@ export default class LSZRWrapper {
           lastChunk = [eocdData, start];
         }
       }
-      const uzr = new LSZR(new Uint8Array(eocdData));
+      const uzr = new Kzpl(new Uint8Array(eocdData));
 
       if (!eocdCacheData) {
         const eocdRange = uzr.eocdRange;

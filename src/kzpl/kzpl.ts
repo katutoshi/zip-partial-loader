@@ -2,7 +2,7 @@ import WorkerWrapper from './worker-wrapper';
 
 const LANE_MULTIPLY = 4;
 
-export default class LSZL {
+export default class Kzpl {
   public readonly url: string;
   private setupWorkers: Promise<WorkerWrapper[]>;
   private prefetching?: Promise<void>;

@@ -21,12 +21,12 @@ Usage
 -----
 
 ``` javascript
-// LSZL is used as ES6 Class.
-const lszl = new LSZL({
+// Kzpl is used as ES6 Class.
+const kzpl = new Kzpl({
   url: 'https://example.com/pass/to/book.epub'
 });
 
-const promise = lsld.getBuffer('mimetype'); // returns a promise that will be resolved with an ArrayBuffer.
+const promise = kzpl.getBuffer('mimetype'); // returns a promise that will be resolved with an ArrayBuffer.
 
 promise.then((buffer) => {
    // use buffer

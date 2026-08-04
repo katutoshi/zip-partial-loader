@@ -8,9 +8,9 @@ type RangeMock = { offset: number; size: number; free: () => void };
 
 const wasmInit = vi.fn(async () => ({}));
 
-// LSZR モックの挙動設定
+// Kzpl モックの挙動設定
 // eocdRange / cdRange の offset は「lastChunk 内の相対オフセット」を返す
-// (lszr-wrapper.ts の `lastChunk[0].slice(start, end)` のセマンティクスに合わせる)。
+// (kzpl-wrapper.ts の `lastChunk[0].slice(start, end)` のセマンティクスに合わせる)。
 // getRange の offset はファイル絶対 (`bytes=${start}-${end}` に使う)。
 const rangeConfig: {
   eocd: RangeMock;
@@ -24,13 +24,13 @@ const rangeConfig: {
   getDataImpl: (_name, data) => new Uint8Array(data.slice(0, 4)),
 };
 
-vi.mock('../../wasm/pkg/lszr.js', () => {
+vi.mock('../../wasm/pkg/kzpl.js', () => {
   const cloneRange = (r: RangeMock): RangeMock => ({
     offset: r.offset,
     size: r.size,
     free: () => {},
   });
-  class LSZR {
+  class Kzpl {
     get eocdRange() {
       return cloneRange(rangeConfig.eocd);
     }
@@ -49,7 +49,7 @@ vi.mock('../../wasm/pkg/lszr.js', () => {
       return rangeConfig.getDataImpl(name, data);
     }
   }
-  return { default: wasmInit, LSZR };
+  return { default: wasmInit, Kzpl };
 });
 
 // FragmentStorage の挙動もテスト毎に差し替え可能な形にする
@@ -73,7 +73,7 @@ vi.mock('./fragment-storage', () => {
   return { default: MockStorage };
 });
 
-let LSZRWrapper: typeof import('./lszr-wrapper').default;
+let KzplWrapper: typeof import('./kzpl-wrapper').default;
 
 beforeEach(async () => {
   wasmInit.mockClear();
@@ -85,8 +85,8 @@ beforeEach(async () => {
   rangeConfig.entries = { 'a.txt': { offset: 100, size: 10 } };
   rangeConfig.getDataImpl = (_name, data) => new Uint8Array(data.slice(0, 4));
   vi.resetModules();
-  const mod = await import('./lszr-wrapper');
-  LSZRWrapper = mod.default;
+  const mod = await import('./kzpl-wrapper');
+  KzplWrapper = mod.default;
 });
 
 afterEach(() => {
@@ -132,10 +132,10 @@ function mockRangeServer() {
   );
 }
 
-describe('LSZRWrapper.getState', () => {
+describe('KzplWrapper.getState', () => {
   it('should resolve entryNames and fallback=false when range requests succeed', async () => {
     mockRangeServer();
-    const wrapper = new LSZRWrapper({
+    const wrapper = new KzplWrapper({
       url: TEST_URL,
       noUseCache: true,
       onUpdateState: () => {},
@@ -153,7 +153,7 @@ describe('LSZRWrapper.getState', () => {
       }),
     );
 
-    const wrapper = new LSZRWrapper({
+    const wrapper = new KzplWrapper({
       url: TEST_URL,
       noUseCache: true,
       onUpdateState: onUpdate,
@@ -165,7 +165,7 @@ describe('LSZRWrapper.getState', () => {
 
   it('should trigger in-memory fallback immediately when forceInMemoryCache=true', async () => {
     server.use(http.get(TEST_URL, () => new HttpResponse(new Uint8Array(1000).fill(0xaa), { status: 200 })));
-    const wrapper = new LSZRWrapper({
+    const wrapper = new KzplWrapper({
       url: TEST_URL,
       noUseCache: true,
       forceInMemoryCache: true,
@@ -179,7 +179,7 @@ describe('LSZRWrapper.getState', () => {
     // C9 対策: eocd の offset を chunk 相対に揃えていないと slice が空になり、
     // 空バッファがキャッシュされる。ここでは実際のキャッシュ内容を検証する。
     mockRangeServer();
-    const wrapper = new LSZRWrapper({
+    const wrapper = new KzplWrapper({
       url: TEST_URL,
       onUpdateState: () => {},
     });
@@ -195,10 +195,10 @@ describe('LSZRWrapper.getState', () => {
   });
 });
 
-describe('LSZRWrapper.getBuffer', () => {
+describe('KzplWrapper.getBuffer', () => {
   it('should return bytes extracted from network response by default', async () => {
     mockRangeServer();
-    const wrapper = new LSZRWrapper({
+    const wrapper = new KzplWrapper({
       url: TEST_URL,
       noUseCache: true,
       onUpdateState: () => {},
@@ -216,7 +216,7 @@ describe('LSZRWrapper.getBuffer', () => {
     // ネットワーク層は正常応答を返すため、fetch 由来の DOMException ではなく
     // util/abort の AbortError クラスが投げられていることを検証する。
     mockRangeServer();
-    const wrapper = new LSZRWrapper({
+    const wrapper = new KzplWrapper({
       url: TEST_URL,
       noUseCache: true,
       onUpdateState: () => {},
@@ -251,7 +251,7 @@ describe('LSZRWrapper.getBuffer', () => {
     );
 
     const onUpdate = vi.fn();
-    const wrapper = new LSZRWrapper({
+    const wrapper = new KzplWrapper({
       url: TEST_URL,
       noUseCache: true,
       onUpdateState: onUpdate,
@@ -309,7 +309,7 @@ describe('LSZRWrapper.getBuffer', () => {
       }),
     );
 
-    const wrapper = new LSZRWrapper({
+    const wrapper = new KzplWrapper({
       url: TEST_URL,
       noUseCache: true,
       onUpdateState: () => {},
@@ -333,7 +333,7 @@ describe('LSZRWrapper.getBuffer', () => {
   });
 
   it('should NOT emit unhandledRejection when downloadAll fails inside cacheInMemory (500 path)', async () => {
-    // 回帰テスト: lszr-wrapper.ts:cacheInMemory 内の `promise.then(async ...)` に
+    // 回帰テスト: kzpl-wrapper.ts:cacheInMemory 内の `promise.then(async ...)` に
     // reject ハンドラが無いと、downloadAll が失敗した際に unhandled rejection が
     // 発生する。機能面の後始末 (this.inMemoryCache = undefined) は直上の
     // promise.catch が担っており、この .then 側にも空の .catch を付けた上での
@@ -341,7 +341,7 @@ describe('LSZRWrapper.getBuffer', () => {
 
     server.use(http.get(TEST_URL, () => new HttpResponse(null, { status: 500 })));
 
-    // tsconfig.lszlw.json は webworker lib で Node グローバル型を含まないため、
+    // tsconfig.kzplw.json は webworker lib で Node グローバル型を含まないため、
     // ここだけ Node 側の `process` を局所的に型付けして拾う (vitest = Node
     // ランタイム上で走るので実行時は必ず存在する)。@types/node を丸ごと
     // 引き込むと webworker 向け型チェック全体が汚れるためこの経路を選ぶ。
@@ -358,7 +358,7 @@ describe('LSZRWrapper.getBuffer', () => {
     nodeProcess.on('unhandledRejection', onUnhandled);
 
     try {
-      const wrapper = new LSZRWrapper({
+      const wrapper = new KzplWrapper({
         url: TEST_URL,
         noUseCache: true,
         onUpdateState: () => {},
@@ -391,7 +391,7 @@ describe('LSZRWrapper.getBuffer', () => {
       if (name === 'a.txt') return Promise.resolve(new Uint8Array([1, 2, 3, 4]).buffer);
       return Promise.resolve(undefined);
     };
-    const wrapper = new LSZRWrapper({
+    const wrapper = new KzplWrapper({
       url: TEST_URL,
       onUpdateState: () => {},
     });

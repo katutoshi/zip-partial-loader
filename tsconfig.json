@@ -2,7 +2,7 @@
   "compilerOptions": {
     "target": "ES2020",
     "module": "ESNext",
-    // Worker 側 (src/lszlw/) は WebWorker 型を、メイン側 (src/lszl/) は DOM 型を
+    // Worker 側 (src/kzplw/) は WebWorker 型を、メイン側 (src/kzpl/) は DOM 型を
     // それぞれ必要とする。単一 tsconfig で両方をコンパイルするため両方の lib を有効化する。
     // 個別のコード内では self / window の使い分けで実行スコープを分けている。
     "lib": ["ES2020", "DOM", "DOM.Iterable", "WebWorker"],
@@ -17,7 +17,7 @@
     "strict": true,
     "skipLibCheck": true,
     "inlineSourceMap": true,
-    // `import init from '../../wasm/pkg/lszr.js'` を確実にリテラルのまま出力するため。
+    // `import init from '../../wasm/pkg/kzpl.js'` を確実にリテラルのまま出力するため。
     "allowImportingTsExtensions": false
   },
   "include": ["src/**/*.ts"],

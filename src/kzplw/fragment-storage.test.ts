@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import FragmentStorage from './fragment-storage';
 
 // IndexedDB を簡易モック。fragment-storage.ts が使う API のみ再現。
-// - open('lszr', DB_VERSION): 同名 DB は複数 open 間で共有 (実ブラウザと同挙動)
+// - open('kzpl', DB_VERSION): 同名 DB は複数 open 間で共有 (実ブラウザと同挙動)
 // - transaction(names, mode).objectStore(name).get / .put / .index('time')
 // - index.count() / index.openCursor() で LRU / expire を模擬
 // - upgrade は初回のみ onupgradeneeded を発火
@@ -243,7 +243,7 @@ describe('FragmentStorage.getFragment', () => {
     // prepare を通して sharedDatabases に DB を作らせる
     await storage.putFragment('entry-1', new Uint8Array([1, 2, 3]).buffer);
     // biome-ignore lint/style/noNonNullAssertion: 直前の putFragment で必ず生成される
-    const db = sharedDatabases.get('lszr')!;
+    const db = sharedDatabases.get('kzpl')!;
 
     // transaction.abort を「this が tx でなければ throw する通常関数」に差し替える。
     // vi.fn() だと this 非依存で退行を検出できないため使わない。
@@ -306,9 +306,9 @@ describe('FragmentStorage.putFragment', () => {
     await storage.putFragment('foo.txt', new Uint8Array([7, 8]).buffer);
 
     // 共有 DB を直接覗いてキー形式を確認 (getFragmentKey ロジックを検証)
-    // FragmentStorage が open する DB は必ず 'lszr' で登録される。
+    // FragmentStorage が open する DB は必ず 'kzpl' で登録される。
     // biome-ignore lint/style/noNonNullAssertion: テスト内不変条件のため
-    const db = sharedDatabases.get('lszr')!;
+    const db = sharedDatabases.get('kzpl')!;
     expect(db).toBeDefined();
     const fragmentRows = db.stores.fragment.rows;
     expect(fragmentRows.map((r) => r.key)).toContain(`${url}:foo.txt`);
@@ -339,9 +339,9 @@ describe('FragmentStorage per-url isolation on shared DB', () => {
     expect(Array.from(gotB)).toEqual([9, 9, 9, 9, 9, 9, 9, 9]);
 
     // 実キーが url プレフィックス込みであることを直接確認
-    // FragmentStorage が open する DB は必ず 'lszr' で登録される。
+    // FragmentStorage が open する DB は必ず 'kzpl' で登録される。
     // biome-ignore lint/style/noNonNullAssertion: テスト内不変条件のため
-    const db = sharedDatabases.get('lszr')!;
+    const db = sharedDatabases.get('kzpl')!;
     const keys = db.stores.fragment.rows.map((r) => r.key).sort();
     expect(keys).toEqual(['https://a.example.com/z.zip:shared', 'https://b.example.com/z.zip:shared']);
   });
@@ -355,9 +355,9 @@ describe('FragmentStorage.clearExpired', () => {
     await storage.putFragment('entry-1', new Uint8Array([1]).buffer);
     await storage.putFragment('entry-2', new Uint8Array([2]).buffer);
 
-    // FragmentStorage が open する DB は必ず 'lszr' で登録される。
+    // FragmentStorage が open する DB は必ず 'kzpl' で登録される。
     // biome-ignore lint/style/noNonNullAssertion: テスト内不変条件のため
-    const db = sharedDatabases.get('lszr')!;
+    const db = sharedDatabases.get('kzpl')!;
     await storage.clearExpired(db as unknown as IDBDatabase);
     expect(db.stores.fragment.rows).toHaveLength(2);
   });
@@ -369,9 +369,9 @@ describe('FragmentStorage.clearExpired', () => {
     // prepare を発火させる
     await storage.getFragment('warmup');
 
-    // FragmentStorage が open する DB は必ず 'lszr' で登録される。
+    // FragmentStorage が open する DB は必ず 'kzpl' で登録される。
     // biome-ignore lint/style/noNonNullAssertion: テスト内不変条件のため
-    const db = sharedDatabases.get('lszr')!;
+    const db = sharedDatabases.get('kzpl')!;
     const now = Date.now();
 
     // 対象 URL 側 1000 件 (新しい)
@@ -412,9 +412,9 @@ describe('FragmentStorage.clearExpired', () => {
       forceKeepCache: true,
     });
     await storage.putFragment('e0', new Uint8Array([0]).buffer);
-    // FragmentStorage が open する DB は必ず 'lszr' で登録される。
+    // FragmentStorage が open する DB は必ず 'kzpl' で登録される。
     // biome-ignore lint/style/noNonNullAssertion: テスト内不変条件のため
-    const db = sharedDatabases.get('lszr')!;
+    const db = sharedDatabases.get('kzpl')!;
     const now = Date.now();
     for (let i = 0; i < 1000; i++) {
       db.stores.fragment.rows.push({

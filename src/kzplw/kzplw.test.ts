@@ -1,8 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { MessageType } from '../types';
 
-// worker 本体は self.onmessage / postMessage / new LSZRWrapper に依存する。
-// self, postMessage をテスト側で差し替え、LSZRWrapper は vi.mock で置換する。
+// worker 本体は self.onmessage / postMessage / new KzplWrapper に依存する。
+// self, postMessage をテスト側で差し替え、KzplWrapper は vi.mock で置換する。
 
 type OnMessage = (ev: MessageEvent) => void;
 const selfObj: { onmessage: OnMessage | null } = { onmessage: null };
@@ -13,7 +13,7 @@ let hadPostMessage = false;
 let originalSelf: unknown;
 let originalPostMessage: unknown;
 
-// LSZRWrapper の挙動をテスト毎に差し替えるための共有ハンドル
+// KzplWrapper の挙動をテスト毎に差し替えるための共有ハンドル
 type MockConfig = {
   state?: { entryNames: string[]; fallback: boolean };
   buffers?: Record<string, Uint8Array>;
@@ -23,8 +23,8 @@ type MockConfig = {
 };
 const mockConfig: MockConfig = {};
 
-vi.mock('./lszr-wrapper', () => {
-  class MockLSZRWrapper {
+vi.mock('./kzpl-wrapper', () => {
+  class MockKzplWrapper {
     constructor(params: any) {
       mockConfig.onConstruct?.(params);
     }
@@ -39,13 +39,13 @@ vi.mock('./lszr-wrapper', () => {
       return Promise.reject(new Error(`no buffer for ${name}`));
     }
   }
-  return { default: MockLSZRWrapper };
+  return { default: MockKzplWrapper };
 });
 
 async function loadWorker() {
   selfObj.onmessage = null;
   vi.resetModules();
-  await import('./lszlw');
+  await import('./kzplw');
 }
 
 beforeEach(async () => {
@@ -90,7 +90,7 @@ async function flush() {
   }
 }
 
-describe('lszlw worker: INIT', () => {
+describe('kzplw worker: INIT', () => {
   it('should set self.onmessage on module load', () => {
     expect(typeof selfObj.onmessage).toBe('function');
   });
@@ -156,7 +156,7 @@ describe('lszlw worker: INIT', () => {
   });
 });
 
-describe('lszlw worker: GET_DATA', () => {
+describe('kzplw worker: GET_DATA', () => {
   beforeEach(async () => {
     mockConfig.state = { entryNames: ['a', 'b'], fallback: false };
     send({ type: MessageType.INIT, payload: { url: 'https://example.com/a.zip' } });
@@ -250,7 +250,7 @@ describe('lszlw worker: GET_DATA', () => {
   });
 });
 
-describe('lszlw worker: ABORT_DATA', () => {
+describe('kzplw worker: ABORT_DATA', () => {
   beforeEach(async () => {
     mockConfig.state = { entryNames: ['a'], fallback: false };
     send({ type: MessageType.INIT, payload: { url: 'https://example.com/a.zip' } });
