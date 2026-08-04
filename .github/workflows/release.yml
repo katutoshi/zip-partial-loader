@@ -1,48 +1,29 @@
 name: Release
 
+# tagpr が打ったタグ (vX.Y.Z) の push を契機に、ビルドして npm へ publish する。
+# タグ打ち・GitHub Release 作成は .github/workflows/tagpr.yml が担当するため、
+# ここでは build + npm publish のみを行う。
 on:
-  workflow_dispatch:
-
-# タグ作成と GitHub Release 作成のため contents: write が必要。それ以外は付けない。
-permissions:
-  contents: write
-
-# 別ブランチから同時に kick された場合でも直列化する。cancel-in-progress: false は
-# publish 中のジョブを別トリガで潰されると npm 側だけ公開/GitHub Release だけ無し
-# という半端状態 (過去に発生実績あり) を再発させかねないため、走り出したものは
-# 最後まで実行させる。group は ref を含めず固定名にして、ブランチ違いでも直列化する。
-concurrency:
-  group: release
-  cancel-in-progress: false
+  push:
+    tags:
+      - "v*"
 
 jobs:
-  release:
-    name: Release (test + build + publish)
+  publish:
+    name: Build and publish to npm
     runs-on: ubuntu-latest
-    # 多層防御: workflow_dispatch でブランチを master 以外に指定されても job 自体を走らせない。
-    # (.release-it.js の git.requireBranch: 'master' でも同じ制約を掛けている)
-    if: github.ref == 'refs/heads/master'
+    # npm publish 用に setup-node が書き出す ~/.npmrc + NODE_AUTH_TOKEN の仕組みを使う。
+    # タグ push は人間の介在なしに走るが、タグは immutable なので冪等性が担保される。
     env:
       WASM_PACK_VERSION: v0.13.1
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-        with:
-          # タグ作成・release-it の changelog 取得のため全履歴を取得する
-          fetch-depth: 0
 
       # setup-node の cache: pnpm を有効にするため setup-node より前に pnpm を入れる。
-      # release-it の npm plugin は内部で `npm publish` を直接呼ぶため
-      # (release-it/lib/plugin/npm/npm.js: publishPackageManager 既定値 'npm')、
-      # publish 側は runner にプリインストールされている npm を使う。
-      # setup-node の registry-url が書き出す ~/.npmrc + NODE_AUTH_TOKEN の仕組みは
-      # pnpm 移行後もそのまま機能する。
       # release.yml は NODE_AUTH_TOKEN (npm publish 用) を持ち込むため、
-      # dtolnay/rust-toolchain と同じ方針で pnpm/action-setup も SHA pin する。
-      # b906affcce14559ad1aafd4ab0e942779e9f58b1 は v4.3.0 annotated tag の指す
-      # コミット (gh api repos/pnpm/action-setup/git/tags/... で確認済み、
-      # tag object の GPG 署名も verified)。tag 差し替えによる将来的な悪意ある
-      # コード注入経路をここで塞ぐ。
+      # pnpm/action-setup も SHA pin する。
+      # b906affcce14559ad1aafd4ab0e942779e9f58b1 は v4.3.0 annotated tag の指すコミット。
       - name: Setup pnpm
         uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4.3.0
 
@@ -51,19 +32,8 @@ jobs:
         with:
           node-version: 22
           cache: pnpm
-          # `npm publish` から NODE_AUTH_TOKEN で npmjs.org を参照させる
           registry-url: 'https://registry.npmjs.org'
 
-      # rust toolchain は wasm/rust-toolchain.toml を単一の真実にする。
-      # 元は dtolnay/rust-toolchain を SHA pin していたが、release.yml は
-      # NODE_AUTH_TOKEN (npm publish) を持ち込むためサードパーティ action は
-      # 削れるなら削るのが望ましい。ubuntu-latest には rustup が pre-installed
-      # されており、`rustup show`/`rustup toolchain install` に任せれば toml が
-      # 単一の真実として機能する (未インストールの toolchain もここで fetch される)。
-      # これで release 経路から dtolnay 依存を落とせる。
-      # 前提: `rustup toolchain install` を引数無しで叩けるのは rustup >= 1.28。
-      # 2026-08 時点で ubuntu-24.04 の rustup は 1.29 系なので現状問題ないが、
-      # 将来ランナーがダウングレードしたら明示引数版に切り替える。
       - name: Install Rust toolchain (rust-toolchain.toml)
         working-directory: wasm
         run: |
@@ -95,27 +65,15 @@ jobs:
       - name: Unit tests
         run: pnpm run test:run
 
-      # ci.yml と同じ fail-fast: wasm-opt 未インストール時に未最適化バイナリが
-      # tgz に混入したり、build.sh の実行権が落ちて古い wasm/pkg が黙って再利用
-      # されるといった、実際に発生した事故経路をここで撃ち抜く。
+      # publish の prepack が build を行うが、wasm-opt 未インストール時に未最適化バイナリが
+      # tgz に混入する事故を防ぐため、publish 前にあらかじめ wasm をビルドしておく (fail fast)。
       - name: Build wasm (fail fast)
         run: ./wasm/build.sh
 
-      - name: Configure git identity
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-
-      - name: Release (release-it)
+      - name: Publish to npm
         env:
-          # tag push・GitHub Release 作成用 (permissions.contents: write に対応)
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          # npm publish 用 (setup-node の registry-url 経由で .npmrc に流し込まれる)
+          # setup-node の registry-url 経由で ~/.npmrc に流し込まれる
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-        # release-it は devDependency で 21.0.1 exact pin 済み。pnpm exec はローカル解決するので
-        # NPM_TOKEN 環境下でも lockfile 外のツリーを取りに行かない。
-        # package.json のバージョンは事前にコミット済みという運用なので --no-increment を必須。
-        # なお release-it 内部の `npm publish` 呼び出しは npm CLI を直接使う (release-it/lib/plugin/npm/npm.js
-        # の publishPackageManager 既定値 'npm')。setup-node が書き出す ~/.npmrc + NODE_AUTH_TOKEN が
-        # そのまま効くので pnpm 側では追加設定不要。
-        run: pnpm exec release-it --ci --no-increment
+        # prepack (pnpm run build: wasm + ts) が実行されたうえで publish される。
+        # --no-git-checks は CI 上で git 状態を検証しないようにするため。
+        run: pnpm publish --no-git-checks
