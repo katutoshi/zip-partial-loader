@@ -1,3 +1,10 @@
+0.12.1
+------
+
+- 不具合修正: Chrome 上で `LSZL` の初期化時に `RangeError: WebAssembly.Table.grow(): failed to grow table by 4` で必ず落ち、実質的にライブラリが機能しなかった問題を修正。0.11.0 以降 npm に publish されていた wasm の `__wbindgen_externrefs` エクスポートが funcref テーブル (max 固定) を指していた不整合が原因 (#24)
+- 開発基盤: 生成 wasm の export → table 対応を `wasm/verify-exports.py` で assert し、`wasm/build.sh` の最終ゲートに組み込んだ (壊れた wasm が npm publish に流出する経路を build 時点で封じる)
+- 開発基盤: CI (`.github/workflows/{release,ci}.yml`) の Binaryen (`wasm-opt`) を `apt-get install` から GitHub Release tarball の pin (`BINARYEN_VERSION: version_131`) に変更し、ubuntu-latest イメージ更新でサイレントに版がずれる経路を塞いだ
+
 0.12.0
 ------
 
