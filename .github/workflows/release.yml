@@ -24,6 +24,7 @@ jobs:
     if: github.ref == 'refs/heads/master'
     env:
       WASM_PACK_VERSION: v0.13.1
+      BINARYEN_VERSION: version_131
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -83,8 +84,22 @@ jobs:
           sudo install -m 0755 "${tmp}/wasm-pack-${WASM_PACK_VERSION}-x86_64-unknown-linux-musl/wasm-pack" /usr/local/bin/wasm-pack
           wasm-pack --version
 
-      - name: Install wasm-opt (binaryen)
-        run: sudo apt-get update && sudo apt-get install -y binaryen
+      # Binaryen (wasm-opt) は ubuntu-latest の apt 任せにすると runner イメージ
+      # 更新でサイレントに版がずれる。issue #24 では apt 版の wasm-opt が
+      # `__wbindgen_externrefs` の table 参照を壊し、Chrome で
+      # `Table.grow()` 即死する wasm を npm に流出させた実績があるため、
+      # WASM_PACK_VERSION と同様に GitHub Release から tarball で pin する。
+      # wasm/build.sh 末尾の verify-exports.py が最終ゲートを兼ねる。
+      - name: Install wasm-opt (binaryen, pinned)
+        run: |
+          set -euo pipefail
+          tarball="binaryen-${BINARYEN_VERSION}-x86_64-linux.tar.gz"
+          url="https://github.com/WebAssembly/binaryen/releases/download/${BINARYEN_VERSION}/${tarball}"
+          tmp="$(mktemp -d)"
+          curl -sSfL -o "${tmp}/${tarball}" "${url}"
+          tar -xzf "${tmp}/${tarball}" -C "${tmp}"
+          sudo install -m 0755 "${tmp}/binaryen-${BINARYEN_VERSION}/bin/wasm-opt" /usr/local/bin/wasm-opt
+          wasm-opt --version
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
