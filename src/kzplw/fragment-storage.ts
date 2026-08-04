@@ -29,7 +29,7 @@ export default class FragmentStorage {
     },
   ) {}
   private prepare: Promise<IDBDatabase> = (async () => {
-    const request = indexedDB.open('lszr', DB_VERSION);
+    const request = indexedDB.open('kzpl', DB_VERSION);
     request.onupgradeneeded = (_event) => {
       const db = request.result;
 

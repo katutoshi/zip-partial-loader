@@ -3,7 +3,7 @@ import { defineConfig } from 'vitest/config';
 export default defineConfig({
   // 0.12 以降は src 側から wasm バイナリを直接 import しない
   // (wasm-pack の `init()` に URL 解決を委譲する) ため、専用の alias は不要。
-  // lszr.js の import は各テストで `vi.mock('../../wasm/pkg/lszr.js', ...)` により
+  // kzpl.js の import は各テストで `vi.mock('../../wasm/pkg/kzpl.js', ...)` により
   // モックされるので、実 wasm が無い CI でも通る。
   test: {
     // tsc の outDir (lib/) にコンパイル済みテスト (.test.js) が出力されるため、

@@ -41,9 +41,9 @@ jobs:
         run: pnpm run lint
 
       # `tsc --noEmit` はこの check ジョブでは走らせない。
-      # 統合後の tsconfig.json は src/lszlw/lszr-wrapper.ts 経由で wasm/pkg/lszr.js
+      # 統合後の tsconfig.json は src/kzplw/kzpl-wrapper.ts 経由で wasm/pkg/kzpl.js
       # の d.ts を参照するため、wasm-pack ビルドが済んでいない環境では
-      # `Cannot find module '../../wasm/pkg/lszr.js'` で必ず落ちる。
+      # `Cannot find module '../../wasm/pkg/kzpl.js'` で必ず落ちる。
       # 型検査は build ジョブ (wasm ビルド直後) に単一の真実として置き、
       # ここで stub d.ts を手当てして "黙って古い産物を再利用する" 事故経路を
       # 作らない。fast-feedback は失うが、unit tests が同じコードパスを叩くので

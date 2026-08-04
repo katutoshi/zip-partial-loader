@@ -8,7 +8,7 @@ use std::io::Cursor;
 use wasm_bindgen::prelude::*;
 
 #[wasm_bindgen]
-pub struct LSZR {
+pub struct KZPL {
     eocd: zip::EOCD,
     entries: Vec<zip::CDHeader>,
     // ファイル名 → entriesインデックスのマップ (O(1)検索用)
@@ -27,9 +27,9 @@ pub struct Range {
 }
 
 #[wasm_bindgen]
-impl LSZR {
+impl KZPL {
     #[wasm_bindgen(constructor)]
-    pub fn new(data: Vec<u8>) -> Result<LSZR, JsValue> {
+    pub fn new(data: Vec<u8>) -> Result<KZPL, JsValue> {
         let len = data.len();
         if len < 22 {
             return Err(JsValue::from(Error::new("Data length invalid.")));

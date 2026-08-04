@@ -10,7 +10,7 @@ if [ -f "$HOME/.cargo/env" ]; then
   . "$HOME/.cargo/env"
 fi
 wasm-pack build --release --target web
-wasm-opt -O3 pkg/lszr_bg.wasm -o pkg/lszr_bg.wasm
+wasm-opt -O3 pkg/kzpl_bg.wasm -o pkg/kzpl_bg.wasm
 
 # 生成 wasm の export → table 対応を検証する。過去 (issue #24) に CI 側の
 # Binaryen (wasm-opt) が `__wbindgen_externrefs` export の指す table を
