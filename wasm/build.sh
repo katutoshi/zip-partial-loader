@@ -17,7 +17,7 @@ wasm-opt -O3 pkg/kzpl_bg.wasm -o pkg/kzpl_bg.wasm
 # funcref 側 (max 固定) に付け替えてしまい、ブラウザで `Table.grow()` が
 # 即死する壊れた wasm を npm publish に流していた実績があるため、
 # ビルドの最終ゲートとしてここで assert する。
-python3 verify-exports.py pkg/lszr_bg.wasm
+python3 verify-exports.py pkg/kzpl_bg.wasm
 
 # wasm-pack は pkg/ の中に `*` だけを書いた .gitignore を生成する。
 # npm pack はネストされた .gitignore も尊重するため、これを残すと package.json の
