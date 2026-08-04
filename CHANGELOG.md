@@ -48,3 +48,8 @@
 -----
 
 - Initial release
+
+## [v0.13.0](https://github.com/katutoshi/zip-partial-loader/compare/v0.12.1...v0.13.0) - 2026-08-04
+
+- リリースフローを release-it から tagpr に移行する by @katutoshi in https://github.com/katutoshi/zip-partial-loader/pull/27
+- 内部モジュール名 LSZL/lszl/lszlw/lszr を kzpl に統一リネームする by @katutoshi in https://github.com/katutoshi/zip-partial-loader/pull/29
