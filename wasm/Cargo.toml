@@ -1,7 +1,10 @@
 [package]
 name = "kzpl"
 version = "0.1.0"
-authors = ["ryokik <ryokik@users.noreply.github.com>"]
+authors = [
+  "ryokik <ryokik@users.noreply.github.com>",
+  "Katsutoshi Enomoto <katu.eno@gmail.com>",
+]
 edition = "2021"
 
 [lib]
