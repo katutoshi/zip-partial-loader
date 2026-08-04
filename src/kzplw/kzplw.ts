@@ -6,7 +6,7 @@ import {
   MessageType,
   type RequestMessage,
 } from '../types';
-import KZPLWrapper from './kzpl-wrapper';
+import KzplWrapper from './kzpl-wrapper';
 
 const dataHandlers: {
   [entryName: string]: {
@@ -38,7 +38,7 @@ function postTransferable<T>(type: string, promise: TransferablePromise<T>, meta
   );
 }
 
-const prepare: Resolver<KZPLWrapper> = createResolver();
+const prepare: Resolver<KzplWrapper> = createResolver();
 
 self.onmessage = (ev: MessageEvent) => {
   const message = ev.data as RequestMessage;
@@ -50,7 +50,7 @@ self.onmessage = (ev: MessageEvent) => {
     } = message as InitRequestMessage;
     prepare.attachPromise(
       (async () => {
-        const kzplw = new KZPLWrapper({
+        const kzplw = new KzplWrapper({
           url,
           noUseCache,
           forceInMemoryCache,

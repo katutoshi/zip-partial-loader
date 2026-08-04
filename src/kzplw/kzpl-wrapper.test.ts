@@ -8,7 +8,7 @@ type RangeMock = { offset: number; size: number; free: () => void };
 
 const wasmInit = vi.fn(async () => ({}));
 
-// KZPL モックの挙動設定
+// Kzpl モックの挙動設定
 // eocdRange / cdRange の offset は「lastChunk 内の相対オフセット」を返す
 // (kzpl-wrapper.ts の `lastChunk[0].slice(start, end)` のセマンティクスに合わせる)。
 // getRange の offset はファイル絶対 (`bytes=${start}-${end}` に使う)。
@@ -30,7 +30,7 @@ vi.mock('../../wasm/pkg/kzpl.js', () => {
     size: r.size,
     free: () => {},
   });
-  class KZPL {
+  class Kzpl {
     get eocdRange() {
       return cloneRange(rangeConfig.eocd);
     }
@@ -49,7 +49,7 @@ vi.mock('../../wasm/pkg/kzpl.js', () => {
       return rangeConfig.getDataImpl(name, data);
     }
   }
-  return { default: wasmInit, KZPL };
+  return { default: wasmInit, Kzpl };
 });
 
 // FragmentStorage の挙動もテスト毎に差し替え可能な形にする
@@ -73,7 +73,7 @@ vi.mock('./fragment-storage', () => {
   return { default: MockStorage };
 });
 
-let KZPLWrapper: typeof import('./kzpl-wrapper').default;
+let KzplWrapper: typeof import('./kzpl-wrapper').default;
 
 beforeEach(async () => {
   wasmInit.mockClear();
@@ -86,7 +86,7 @@ beforeEach(async () => {
   rangeConfig.getDataImpl = (_name, data) => new Uint8Array(data.slice(0, 4));
   vi.resetModules();
   const mod = await import('./kzpl-wrapper');
-  KZPLWrapper = mod.default;
+  KzplWrapper = mod.default;
 });
 
 afterEach(() => {
@@ -132,10 +132,10 @@ function mockRangeServer() {
   );
 }
 
-describe('KZPLWrapper.getState', () => {
+describe('KzplWrapper.getState', () => {
   it('should resolve entryNames and fallback=false when range requests succeed', async () => {
     mockRangeServer();
-    const wrapper = new KZPLWrapper({
+    const wrapper = new KzplWrapper({
       url: TEST_URL,
       noUseCache: true,
       onUpdateState: () => {},
@@ -153,7 +153,7 @@ describe('KZPLWrapper.getState', () => {
       }),
     );
 
-    const wrapper = new KZPLWrapper({
+    const wrapper = new KzplWrapper({
       url: TEST_URL,
       noUseCache: true,
       onUpdateState: onUpdate,
@@ -165,7 +165,7 @@ describe('KZPLWrapper.getState', () => {
 
   it('should trigger in-memory fallback immediately when forceInMemoryCache=true', async () => {
     server.use(http.get(TEST_URL, () => new HttpResponse(new Uint8Array(1000).fill(0xaa), { status: 200 })));
-    const wrapper = new KZPLWrapper({
+    const wrapper = new KzplWrapper({
       url: TEST_URL,
       noUseCache: true,
       forceInMemoryCache: true,
@@ -179,7 +179,7 @@ describe('KZPLWrapper.getState', () => {
     // C9 対策: eocd の offset を chunk 相対に揃えていないと slice が空になり、
     // 空バッファがキャッシュされる。ここでは実際のキャッシュ内容を検証する。
     mockRangeServer();
-    const wrapper = new KZPLWrapper({
+    const wrapper = new KzplWrapper({
       url: TEST_URL,
       onUpdateState: () => {},
     });
@@ -195,10 +195,10 @@ describe('KZPLWrapper.getState', () => {
   });
 });
 
-describe('KZPLWrapper.getBuffer', () => {
+describe('KzplWrapper.getBuffer', () => {
   it('should return bytes extracted from network response by default', async () => {
     mockRangeServer();
-    const wrapper = new KZPLWrapper({
+    const wrapper = new KzplWrapper({
       url: TEST_URL,
       noUseCache: true,
       onUpdateState: () => {},
@@ -216,7 +216,7 @@ describe('KZPLWrapper.getBuffer', () => {
     // ネットワーク層は正常応答を返すため、fetch 由来の DOMException ではなく
     // util/abort の AbortError クラスが投げられていることを検証する。
     mockRangeServer();
-    const wrapper = new KZPLWrapper({
+    const wrapper = new KzplWrapper({
       url: TEST_URL,
       noUseCache: true,
       onUpdateState: () => {},
@@ -251,7 +251,7 @@ describe('KZPLWrapper.getBuffer', () => {
     );
 
     const onUpdate = vi.fn();
-    const wrapper = new KZPLWrapper({
+    const wrapper = new KzplWrapper({
       url: TEST_URL,
       noUseCache: true,
       onUpdateState: onUpdate,
@@ -309,7 +309,7 @@ describe('KZPLWrapper.getBuffer', () => {
       }),
     );
 
-    const wrapper = new KZPLWrapper({
+    const wrapper = new KzplWrapper({
       url: TEST_URL,
       noUseCache: true,
       onUpdateState: () => {},
@@ -358,7 +358,7 @@ describe('KZPLWrapper.getBuffer', () => {
     nodeProcess.on('unhandledRejection', onUnhandled);
 
     try {
-      const wrapper = new KZPLWrapper({
+      const wrapper = new KzplWrapper({
         url: TEST_URL,
         noUseCache: true,
         onUpdateState: () => {},
@@ -391,7 +391,7 @@ describe('KZPLWrapper.getBuffer', () => {
       if (name === 'a.txt') return Promise.resolve(new Uint8Array([1, 2, 3, 4]).buffer);
       return Promise.resolve(undefined);
     };
-    const wrapper = new KZPLWrapper({
+    const wrapper = new KzplWrapper({
       url: TEST_URL,
       onUpdateState: () => {},
     });

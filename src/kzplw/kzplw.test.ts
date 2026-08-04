@@ -1,8 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { MessageType } from '../types';
 
-// worker 本体は self.onmessage / postMessage / new KZPLWrapper に依存する。
-// self, postMessage をテスト側で差し替え、KZPLWrapper は vi.mock で置換する。
+// worker 本体は self.onmessage / postMessage / new KzplWrapper に依存する。
+// self, postMessage をテスト側で差し替え、KzplWrapper は vi.mock で置換する。
 
 type OnMessage = (ev: MessageEvent) => void;
 const selfObj: { onmessage: OnMessage | null } = { onmessage: null };
@@ -13,7 +13,7 @@ let hadPostMessage = false;
 let originalSelf: unknown;
 let originalPostMessage: unknown;
 
-// KZPLWrapper の挙動をテスト毎に差し替えるための共有ハンドル
+// KzplWrapper の挙動をテスト毎に差し替えるための共有ハンドル
 type MockConfig = {
   state?: { entryNames: string[]; fallback: boolean };
   buffers?: Record<string, Uint8Array>;
@@ -24,7 +24,7 @@ type MockConfig = {
 const mockConfig: MockConfig = {};
 
 vi.mock('./kzpl-wrapper', () => {
-  class MockKZPLWrapper {
+  class MockKzplWrapper {
     constructor(params: any) {
       mockConfig.onConstruct?.(params);
     }
@@ -39,7 +39,7 @@ vi.mock('./kzpl-wrapper', () => {
       return Promise.reject(new Error(`no buffer for ${name}`));
     }
   }
-  return { default: MockKZPLWrapper };
+  return { default: MockKzplWrapper };
 });
 
 async function loadWorker() {

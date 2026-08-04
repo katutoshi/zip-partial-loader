@@ -1,4 +1,4 @@
-import init, { KZPL } from '../../wasm/pkg/kzpl.js';
+import init, { Kzpl } from '../../wasm/pkg/kzpl.js';
 import { type DataChunk, downloadAll, downloadRange } from './downloader';
 
 // WASM 初期化 (一度だけ実行)。
@@ -19,11 +19,11 @@ import FragmentStorage from './fragment-storage';
 const EOCD_ENTRY_NAME = ':eocd';
 const CD_ENTRY_NAME = ':cd';
 
-export default class KZPLWrapper {
+export default class KzplWrapper {
   private state: WorkerState;
   // prepare() の中で失敗時に undefined を戻す再入経路があるため、
   // 型的にも `| undefined` (= optional) として宣言しておく。
-  private init?: Promise<KZPL>;
+  private init?: Promise<Kzpl>;
   private inMemoryCache?: Promise<ArrayBuffer>;
   private storage?: FragmentStorage;
 
@@ -49,7 +49,7 @@ export default class KZPLWrapper {
     this.prepare();
   }
 
-  private prepare(): Promise<KZPL> {
+  private prepare(): Promise<Kzpl> {
     if (this.init) {
       return this.init;
     }
@@ -81,7 +81,7 @@ export default class KZPLWrapper {
           lastChunk = [eocdData, start];
         }
       }
-      const uzr = new KZPL(new Uint8Array(eocdData));
+      const uzr = new Kzpl(new Uint8Array(eocdData));
 
       if (!eocdCacheData) {
         const eocdRange = uzr.eocdRange;
