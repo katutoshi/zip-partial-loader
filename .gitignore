@@ -8,6 +8,3 @@ node_modules/
 
 # release
 *.tgz
-
-# generated test files
-static/test-500-entries.epub
