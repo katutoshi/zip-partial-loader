@@ -1,0 +1,6 @@
+[tagpr]
+releaseBranch = master
+vPrefix = true
+versionFile = package.json
+changelog = true
+changelogFile = CHANGELOG.md

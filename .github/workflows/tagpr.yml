@@ -1,0 +1,32 @@
+name: tagpr
+
+# master への push を契機に、tagpr が「次リリース用 PR」を自動生成・更新する。
+# その PR がマージされると、tagpr 自身がタグを打ち GitHub Release を作成する。
+# （実際の npm publish は .github/workflows/release.yml がタグ push を契機に行う）
+on:
+  push:
+    branches: ["master"]
+
+# リリース PR の作成・タグ打ち・Release 作成のため以下が必要。それ以外は付けない。
+permissions:
+  contents: write
+  pull-requests: write
+  issues: read
+
+jobs:
+  tagpr:
+    runs-on: ubuntu-latest
+    steps:
+      # persist-credentials: false にしておき、tagpr は渡した GITHUB_TOKEN で
+      # push/PR 作成を行う（token の権限を最小化する定石）。
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      # Songmu/tagpr@v1 の指すコミット (gh api repos/Songmu/tagpr/git/tags/v1 で確認済み、
+      # annotated tag v1 が指す commit)。tag 差し替えによる悪意あるコード注入を防ぐため SHA pin。
+      - name: Run tagpr
+        uses: Songmu/tagpr@d1b8138b7a31075141b6cd64103de9485ced7ac9 # v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
