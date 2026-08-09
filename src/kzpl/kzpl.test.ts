@@ -172,6 +172,40 @@ describe('Kzpl.getBuffer', () => {
     }
   });
 
+  it('should prefer the first worker when multiple workers hold the cached buffer', async () => {
+    // リファクタ (for...of 化) 後も、キャッシュ走査が先頭 worker から順に行われることを固定する。
+    const kzpl = new Kzpl({ url: 'https://example.com/file.zip', multiply: 3 });
+    await kzpl.getEntryNames();
+
+    const first = new ArrayBuffer(1);
+    const last = new ArrayBuffer(2);
+    wrappers[0].getExistsBuffer.mockImplementation((n: string) => (n === 'a.txt' ? Promise.resolve(first) : undefined));
+    wrappers[2].getExistsBuffer.mockImplementation((n: string) => (n === 'a.txt' ? Promise.resolve(last) : undefined));
+
+    const result = await kzpl.getBuffer('a.txt');
+    expect(result).toBe(first);
+    // 2 番目以降の worker には到達しない
+    expect(wrappers[1].getExistsBuffer).not.toHaveBeenCalled();
+    expect(wrappers[2].getExistsBuffer).not.toHaveBeenCalled();
+  });
+
+  it('should not query pending counts when a cached buffer is found', async () => {
+    // キャッシュヒット時は getMostFreeWorker (getPendingCount 探索) に進まないことを固定する。
+    const kzpl = new Kzpl({ url: 'https://example.com/file.zip', multiply: 3 });
+    await kzpl.getEntryNames();
+
+    const target = new ArrayBuffer(4);
+    wrappers[0].getExistsBuffer.mockImplementation((n: string) =>
+      n === 'a.txt' ? Promise.resolve(target) : undefined,
+    );
+
+    const result = await kzpl.getBuffer('a.txt');
+    expect(result).toBe(target);
+    for (const w of wrappers) {
+      expect(w.getPendingCount).not.toHaveBeenCalled();
+    }
+  });
+
   it('should select the most-free worker (lowest pending count)', async () => {
     const kzpl = new Kzpl({ url: 'https://example.com/file.zip', multiply: 3 });
     await kzpl.getEntryNames();

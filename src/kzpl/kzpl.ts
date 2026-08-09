@@ -35,7 +35,8 @@ export default class Kzpl {
       firstWorker.onFallback = () => this.fallback(firstWorker);
       const workers = [firstWorker];
       const multiply = (params.multiply && Math.max(params.multiply, 1)) || LANE_MULTIPLY;
-      for (let index = 1; index < multiply; index++) {
+      // co-worker を (multiply - 1) 個生成する (回数指定ループ)
+      for (const _ of Array.from({ length: multiply - 1 })) {
         const coworker = new WorkerWrapper({
           url,
           worker: this.params.worker,
@@ -68,23 +69,16 @@ export default class Kzpl {
 
   private async getMostFreeWorker(): Promise<WorkerWrapper> {
     const workers = await this.setupWorkers;
-    let minCount = Number.POSITIVE_INFINITY;
-    let freeWorker: WorkerWrapper = workers[0];
-    for (let index = 0; index < workers.length; index++) {
-      const worker = workers[index];
-      const pendingCount = worker.getPendingCount();
-      if (minCount > pendingCount) {
-        minCount = pendingCount;
-        freeWorker = worker;
-      }
-    }
-    return freeWorker;
+    // workers はコンストラクタで必ず 1 つ以上生成されるため、初期値なし reduce は安全。
+    // 同数 (pendingCount が等しい) の場合は先頭の worker が残る (strict < のため)。
+    return workers.reduce((freeWorker, worker) =>
+      worker.getPendingCount() < freeWorker.getPendingCount() ? worker : freeWorker,
+    );
   }
 
   public abort = async (entryName: string) => {
     const workers = await this.setupWorkers;
-    for (let index = 0; index < workers.length; index++) {
-      const worker = workers[index];
+    for (const worker of workers) {
       worker.abort(entryName);
     }
   };
@@ -97,8 +91,7 @@ export default class Kzpl {
 
   public getBuffer = async (entryName: string): Promise<ArrayBuffer> => {
     const workers = await this.setupWorkers;
-    for (let index = 0; index < workers.length; index++) {
-      const worker = workers[index];
+    for (const worker of workers) {
       const exists = worker.getExistsBuffer(entryName);
       if (exists) {
         return exists;
