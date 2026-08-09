@@ -122,17 +122,17 @@ describe('Kzpl constructor', () => {
     expect(wrappers).toHaveLength(2);
   });
 
-  it('should start ceil(multiply) workers for fractional multiply (2.5 -> 3)', async () => {
-    // 回帰テスト: 旧実装の for (index = 1; index < multiply; index++) は ceil(multiply) - 1 回
-    // 回るため、小数 multiply でも worker 総数は ceil(multiply) 個になる。
-    // Array.from({ length: multiply - 1 }) だと ToLength の切り捨てで 1 個少なくなる
-    // (multiply: 2.5 → worker 計 2 個) という退行を検出する。
+  it('should preserve legacy fractional-multiply behavior: 2.5 spawns 3 workers (ceil)', async () => {
+    // レガシー挙動の保全: 旧実装の for (index = 1; index < multiply; index++) は
+    // ceil(multiply) - 1 回回るため、小数 multiply でも worker 総数は ceil(multiply) 個になる。
+    // これは意図的仕様ではなく偶発的な挙動なので、テストは「保全」目的であることを明示する
+    // (将来 floor/round に変えたくなった場合、このテストがブロッカーになるのは意図どおり)。
     const kzpl = new Kzpl({ url: 'https://example.com/file.zip', multiply: 2.5 });
     await kzpl.getEntryNames();
     expect(wrappers).toHaveLength(3);
   });
 
-  it('should start ceil(multiply) workers for fractional multiply (3.5 -> 4)', async () => {
+  it('should preserve legacy fractional-multiply behavior: 3.5 spawns 4 workers (ceil)', async () => {
     const kzpl = new Kzpl({ url: 'https://example.com/file.zip', multiply: 3.5 });
     await kzpl.getEntryNames();
     expect(wrappers).toHaveLength(4);
