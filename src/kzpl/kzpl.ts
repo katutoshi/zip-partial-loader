@@ -35,8 +35,13 @@ export default class Kzpl {
       firstWorker.onFallback = () => this.fallback(firstWorker);
       const workers = [firstWorker];
       const multiply = (params.multiply && Math.max(params.multiply, 1)) || LANE_MULTIPLY;
-      // co-worker を (multiply - 1) 個生成する (回数指定ループ)
-      for (const _ of Array.from({ length: multiply - 1 })) {
+      // co-worker を (multiply - 1) 個生成する。
+      // 旧実装の for (let index = 1; index < multiply; index++) は ceil(multiply) - 1 回
+      // 回るため、小数 multiply (例: 2.5) でも同じ回数を再現するには ceil が必須。
+      // Array.from の length は ToLength で切り捨てられるため、そのまま渡すと
+      // 整数時と回数が変わってしまう (multiply: 2.5 → 1 個しか作られない)。
+      const coworkerCount = Math.max(0, Math.ceil(multiply) - 1);
+      for (const _ of Array.from({ length: coworkerCount })) {
         const coworker = new WorkerWrapper({
           url,
           worker: this.params.worker,
@@ -69,11 +74,21 @@ export default class Kzpl {
 
   private async getMostFreeWorker(): Promise<WorkerWrapper> {
     const workers = await this.setupWorkers;
-    // workers はコンストラクタで必ず 1 つ以上生成されるため、初期値なし reduce は安全。
-    // 同数 (pendingCount が等しい) の場合は先頭の worker が残る (strict < のため)。
-    return workers.reduce((freeWorker, worker) =>
-      worker.getPendingCount() < freeWorker.getPendingCount() ? worker : freeWorker,
-    );
+    // workers はコンストラクタで必ず 1 つ以上生成されるため workers[0] は安全。
+    // getPendingCount() は Object.keys() で配列を確保するため、最小値はローカル変数に
+    // キャッシュして各 worker につき 1 回の呼び出しに抑える (reduce で毎回
+    // freeWorker.getPendingCount() を呼ぶと 2N-1 回になり、prefetchAll のホットパスで
+    // 不要な配列確保が増える)。
+    let minCount = Number.POSITIVE_INFINITY;
+    let freeWorker: WorkerWrapper = workers[0];
+    for (const worker of workers) {
+      const pendingCount = worker.getPendingCount();
+      if (minCount > pendingCount) {
+        minCount = pendingCount;
+        freeWorker = worker;
+      }
+    }
+    return freeWorker;
   }
 
   public abort = async (entryName: string) => {
