@@ -122,6 +122,22 @@ describe('Kzpl constructor', () => {
     expect(wrappers).toHaveLength(2);
   });
 
+  it('should preserve legacy fractional-multiply behavior: 2.5 spawns 3 workers (ceil)', async () => {
+    // レガシー挙動の保全: 旧実装の for (index = 1; index < multiply; index++) は
+    // ceil(multiply) - 1 回回るため、小数 multiply でも worker 総数は ceil(multiply) 個になる。
+    // これは意図的仕様ではなく偶発的な挙動なので、テストは「保全」目的であることを明示する
+    // (将来 floor/round に変えたくなった場合、このテストがブロッカーになるのは意図どおり)。
+    const kzpl = new Kzpl({ url: 'https://example.com/file.zip', multiply: 2.5 });
+    await kzpl.getEntryNames();
+    expect(wrappers).toHaveLength(3);
+  });
+
+  it('should preserve legacy fractional-multiply behavior: 3.5 spawns 4 workers (ceil)', async () => {
+    const kzpl = new Kzpl({ url: 'https://example.com/file.zip', multiply: 3.5 });
+    await kzpl.getEntryNames();
+    expect(wrappers).toHaveLength(4);
+  });
+
   it('should clamp multiply to 1 when a negative value is given (Math.max)', async () => {
     // 実装は `params.multiply && Math.max(params.multiply, 1) || LANE_MULTIPLY`。
     // 負値 (-3) は truthy なので Math.max(-3, 1) = 1 に clamp される。
@@ -169,6 +185,40 @@ describe('Kzpl.getBuffer', () => {
     expect(result).toBe(target);
     for (const w of wrappers) {
       expect(w.getBuffer).not.toHaveBeenCalled();
+    }
+  });
+
+  it('should prefer the first worker when multiple workers hold the cached buffer', async () => {
+    // リファクタ (for...of 化) 後も、キャッシュ走査が先頭 worker から順に行われることを固定する。
+    const kzpl = new Kzpl({ url: 'https://example.com/file.zip', multiply: 3 });
+    await kzpl.getEntryNames();
+
+    const first = new ArrayBuffer(1);
+    const last = new ArrayBuffer(2);
+    wrappers[0].getExistsBuffer.mockImplementation((n: string) => (n === 'a.txt' ? Promise.resolve(first) : undefined));
+    wrappers[2].getExistsBuffer.mockImplementation((n: string) => (n === 'a.txt' ? Promise.resolve(last) : undefined));
+
+    const result = await kzpl.getBuffer('a.txt');
+    expect(result).toBe(first);
+    // 2 番目以降の worker には到達しない
+    expect(wrappers[1].getExistsBuffer).not.toHaveBeenCalled();
+    expect(wrappers[2].getExistsBuffer).not.toHaveBeenCalled();
+  });
+
+  it('should not query pending counts when a cached buffer is found', async () => {
+    // キャッシュヒット時は getMostFreeWorker (getPendingCount 探索) に進まないことを固定する。
+    const kzpl = new Kzpl({ url: 'https://example.com/file.zip', multiply: 3 });
+    await kzpl.getEntryNames();
+
+    const target = new ArrayBuffer(4);
+    wrappers[0].getExistsBuffer.mockImplementation((n: string) =>
+      n === 'a.txt' ? Promise.resolve(target) : undefined,
+    );
+
+    const result = await kzpl.getBuffer('a.txt');
+    expect(result).toBe(target);
+    for (const w of wrappers) {
+      expect(w.getPendingCount).not.toHaveBeenCalled();
     }
   });
 

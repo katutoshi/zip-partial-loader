@@ -35,6 +35,8 @@ export default class Kzpl {
       firstWorker.onFallback = () => this.fallback(firstWorker);
       const workers = [firstWorker];
       const multiply = (params.multiply && Math.max(params.multiply, 1)) || LANE_MULTIPLY;
+      // co-worker を (multiply - 1) 個生成する。
+      // index < multiply の比較は小数 multiply で ceil(multiply) - 1 個を生む。
       for (let index = 1; index < multiply; index++) {
         const coworker = new WorkerWrapper({
           url,
@@ -70,8 +72,7 @@ export default class Kzpl {
     const workers = await this.setupWorkers;
     let minCount = Number.POSITIVE_INFINITY;
     let freeWorker: WorkerWrapper = workers[0];
-    for (let index = 0; index < workers.length; index++) {
-      const worker = workers[index];
+    for (const worker of workers) {
       const pendingCount = worker.getPendingCount();
       if (minCount > pendingCount) {
         minCount = pendingCount;
@@ -83,8 +84,7 @@ export default class Kzpl {
 
   public abort = async (entryName: string) => {
     const workers = await this.setupWorkers;
-    for (let index = 0; index < workers.length; index++) {
-      const worker = workers[index];
+    for (const worker of workers) {
       worker.abort(entryName);
     }
   };
@@ -97,8 +97,7 @@ export default class Kzpl {
 
   public getBuffer = async (entryName: string): Promise<ArrayBuffer> => {
     const workers = await this.setupWorkers;
-    for (let index = 0; index < workers.length; index++) {
-      const worker = workers[index];
+    for (const worker of workers) {
       const exists = worker.getExistsBuffer(entryName);
       if (exists) {
         return exists;
